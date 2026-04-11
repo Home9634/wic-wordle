@@ -15,8 +15,9 @@ export default function GuessRow({ guess, target }) {
   const getBoxClass = (key) => {
     const stat = feedback[key];
     if (stat === "correct") return "bg-green-700";
-    if (stat === "higher" || stat === "later") return "bg-orange-400 stat-higher"; 
-    if (stat === "lower" || stat === "earlier") return "bg-orange-400 stat-lower";
+    if (stat === "close") return "bg-orange-400";
+    if (stat === "close-higher" || stat === "later") return "bg-orange-400 stat-higher"; 
+    if (stat === "close-lower" || stat === "earlier") return "bg-orange-400 stat-lower";
     return "bg-gray-500";
   };
 

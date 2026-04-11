@@ -1,5 +1,6 @@
 import { players } from '../data/players';
 import { eventOrder } from '../data/events';
+import { gameTypeByName } from '../data/gameCategories';
 
 export const getDailyPlayer = () => {
   const startDate = new Date('2023-12-01').getTime(); // Set your start date
@@ -28,6 +29,17 @@ const statKeys = [
   'nonCanonWins'
 ];
 
+const gameStatKeys = ['favGame', 'leastFavGame', 'bestGame', 'bestGameRetired'];
+
+const areGamesInSameCategory = (guessGame, targetGame) => {
+  if (!guessGame || !targetGame) return false;
+
+  const guessType = gameTypeByName[guessGame];
+  const targetType = gameTypeByName[targetGame];
+
+  return Boolean(guessType && targetType && guessType === targetType);
+};
+
 export const compareStats = (guess, target) => {
   const feedback = {};
 
@@ -35,7 +47,14 @@ export const compareStats = (guess, target) => {
     if (guess[key] === target[key]) {
       feedback[key] = "correct";
     } else if (typeof target[key] === 'number') {
-      feedback[key] = guess[key] < target[key] ? "higher" : "lower";
+      const difference = Math.abs(guess[key] - target[key]);
+      if (difference <= 2) {
+        feedback[key] = guess[key] < target[key] ? 'close-higher' : 'close-lower';
+      } else {
+        feedback[key] = 'wrong';
+      }
+    } else if (gameStatKeys.includes(key)) {
+      feedback[key] = areGamesInSameCategory(guess[key], target[key]) ? 'close' : 'wrong';
     } else if (key === 'debut') {
       const guessIdx = eventOrder.indexOf(guess[key]);
       const targetIdx = eventOrder.indexOf(target[key]);
