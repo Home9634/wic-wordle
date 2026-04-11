@@ -755,7 +755,7 @@ export const players = [
     canonFinale: 0,
     nonCanonFinale: 0,
     canonPlayed: 1,
-    nonCanonPlayed: 0,
+    nonCanonPlayed: 1,
     favGame: undefined,
     leastFavGame: undefined,
     bestGame: "Hole in the Wall",
