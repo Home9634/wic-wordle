@@ -615,7 +615,7 @@ export const players = [
     nonCanonWins: 0
   },
   {
-    name: "Oniogarra",
+    name: "OnioGarra",
     debut: "(Blockfest)",
     canonFinale: 0,
     nonCanonFinale: 0,
@@ -690,7 +690,7 @@ export const players = [
     nonCanonWins: 0
   },
   {
-    name: "Solarockk",
+    name: "Solarock",
     debut: "(TBD)",
     canonFinale: 0,
     nonCanonFinale: 0,
@@ -750,7 +750,7 @@ export const players = [
     nonCanonWins: 0
   },
   {
-    name: "TheYeSilvie",
+    name: "SilvieBleepBloop",
     debut: "Spring Skirmish",
     canonFinale: 0,
     nonCanonFinale: 0,

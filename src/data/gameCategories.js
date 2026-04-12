@@ -13,7 +13,7 @@ export const gameTypeByName = {
   'Battle Box': GAME_TYPES.PVP,
   'Totem Tag': GAME_TYPES.TEAM,
   'Bingo But Quick': GAME_TYPES.TEAM,
-  'Hole In The Wall': GAME_TYPES.MISC,
+  'Hole in the Wall': GAME_TYPES.MISC,
   'Rocket Spleef Rush': GAME_TYPES.MISC,
   'Dynaball': GAME_TYPES.MISC
 };
