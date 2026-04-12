@@ -430,7 +430,7 @@ export const players = [
     leastFavGame: "Sky Battle",
     bestGame: "Sky Battle",
     bestGameRetired: "Sky Battle",
-    region: undefined,
+    region: "NA",
     canonWins: 0,
     nonCanonWins: 0
   },
@@ -760,7 +760,7 @@ export const players = [
     leastFavGame: undefined,
     bestGame: "Hole in the Wall",
     bestGameRetired: "Hole in the Wall",
-    region: undefined,
+    region: "NA",
     canonWins: 0,
     nonCanonWins: 0
   },

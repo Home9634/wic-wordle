@@ -12,6 +12,10 @@ export default function Game({ mode, onBack }) {
   const target = useMemo(() => {
     return mode === 'daily' ? getDailyPlayer() : getRandomPlayer();
   }, [mode]);
+  const handlePlayAgain = () => {
+    setGuesses([]);
+    setGameOver(false);
+  };
   const gameCategoryRows = useMemo(() => {
     return Object.entries(gameTypeByName).sort(([gameA, categoryA], [gameB, categoryB]) => {
       const byCategory = categoryA.localeCompare(categoryB);
@@ -52,12 +56,20 @@ export default function Game({ mode, onBack }) {
       </button>
       <h2 className="text-xl my-4 capitalize">{mode} Mode</h2>
 
-      {!gameOver && <SearchBar onGuess={handleGuess} disabledPlayers={guesses.map(g => g.name)} />}
-
-      {!gameOver && (
-        <p className="mt-3 text-xs text-gray-300 text-center">
-          Hover or hold on a category header to see details about what that category and its values mean.
-        </p>
+      {gameOver ? (
+        <div className="text-center">
+          <p className="text-base text-white mb-4">You Got It In {guesses.length} Guesses!</p>
+          <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded cursor-pointer" onClick={handlePlayAgain}>
+            Play Again
+          </button>
+        </div>
+      ) : (
+        <>
+          <SearchBar onGuess={handleGuess} disabledPlayers={guesses.map(g => g.name)} />
+          <p className="mt-3 text-xs text-gray-300 text-center">
+            Hover or hold on a category header to see details about what that category and its values mean.
+          </p>
+        </>
       )}
 
       <div className="w-full overflow-x-auto mt-8">

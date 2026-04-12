@@ -1,6 +1,6 @@
 import { compareStats } from '../utils/gameLogic';
 import TableCell from './TableCell';
-import { gameArtByName } from '../data/icons';
+import { getGameArtByName } from '../data/icons';
 
 const PLAYER_ICON_SIZE = 'h-6 w-6';
 const GAME_ICON_SIZE = 'h-6 w-6';
@@ -11,7 +11,7 @@ export default function GuessRow({ guess, target }) {
 
   const getGameArt = (gameName) => {
     if (!gameName) return null;
-    return gameArtByName[gameName] || null;
+    return getGameArtByName(gameName);
   };
 
   // Helper to determine tailwind classes based on logic
