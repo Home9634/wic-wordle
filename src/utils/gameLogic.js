@@ -58,7 +58,16 @@ export const compareStats = (guess, target) => {
     } else if (key === 'debut') {
       const guessIdx = eventOrder.indexOf(guess[key]);
       const targetIdx = eventOrder.indexOf(target[key]);
-      feedback[key] = guessIdx < targetIdx ? "later" : "earlier";
+      if (guessIdx === -1 || targetIdx === -1) {
+        feedback[key] = 'wrong';
+      } else {
+        const difference = Math.abs(guessIdx - targetIdx);
+        if (difference <= 2) {
+          feedback[key] = guessIdx < targetIdx ? 'close-higher' : 'close-lower';
+        } else {
+          feedback[key] = guessIdx < targetIdx ? 'later' : 'earlier';
+        }
+      }
     } else {
       feedback[key] = "wrong";
     }

@@ -19,8 +19,10 @@ export default function GuessRow({ guess, target }) {
     const stat = feedback[key];
     if (stat === "correct") return "bg-green-700";
     if (stat === "close") return "bg-orange-400";
-    if (stat === "close-higher" || stat === "later") return "bg-orange-400 stat-higher"; 
-    if (stat === "close-lower" || stat === "earlier") return "bg-orange-400 stat-lower";
+    if (stat === "close-higher") return "bg-orange-400 stat-higher";
+    if (stat === "close-lower") return "bg-orange-400 stat-lower";
+    if (stat === "later") return "bg-gray-500 stat-higher";
+    if (stat === "earlier") return "bg-gray-500 stat-lower";
     return "bg-gray-500";
   };
 

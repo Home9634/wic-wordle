@@ -9,12 +9,16 @@ import CategoryHeaderCell from './CategoryHeaderCell';
 export default function Game({ mode, onBack }) {
   const [guesses, setGuesses] = useState([]);
   const [gameOver, setGameOver] = useState(false);
+  const [roundSeed, setRoundSeed] = useState(0);
   const target = useMemo(() => {
     return mode === 'daily' ? getDailyPlayer() : getRandomPlayer();
-  }, [mode]);
+  }, [mode, roundSeed]);
   const handlePlayAgain = () => {
     setGuesses([]);
     setGameOver(false);
+    if (mode === 'quick') {
+      setRoundSeed(prev => prev + 1);
+    }
   };
   const gameCategoryRows = useMemo(() => {
     return Object.entries(gameTypeByName).sort(([gameA, categoryA], [gameB, categoryB]) => {
@@ -102,6 +106,7 @@ export default function Game({ mode, onBack }) {
         <p className="mt-3 font-semibold">Orange rules</p>
         <ul className="mt-1 list-disc list-inside space-y-1 text-gray-200">
           <li>Number stats: orange when your guess is within ±2 of the target value.</li>
+          <li>Debut: orange when your guess is within ±2 events (both canon and non-canon included) of the target debut.</li>
           <li>Game stats: orange when guessed and target games are in the same category.</li>
         </ul>
 

@@ -29,7 +29,9 @@ export default function Menu({ onSelectMode }) {
       {/* Footer / Credits */}
       <footer className="mt-12 text-sm opacity-50">
         <p>Absolute Wing It</p>
-        <p style={{ fontSize: '6px' }}>You should go play HSTCG</p>
+        <a href="https://hstcg.netlify.app/" target="_blank" rel="noopener noreferrer" className="m-0" style={{ fontSize: '7px' }}>
+          You should go play HSTCG
+        </a>
       </footer>
     </div>
   );
