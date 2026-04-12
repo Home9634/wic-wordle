@@ -385,7 +385,7 @@ export const players = [
     leastFavGame: "Battle Box",
     bestGame: "Hole in the Wall",
     bestGameRetired: "Hole in the Wall",
-    region: undefined,
+    region: 'EU',
     canonWins: 0,
     nonCanonWins: 1
   },
