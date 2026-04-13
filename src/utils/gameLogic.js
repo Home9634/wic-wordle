@@ -1,12 +1,62 @@
 import { players } from '../data/players';
 import { eventOrder } from '../data/events';
 import { gameTypeByName } from '../data/gameCategories';
+import { dailyPlayerOrder } from '../data/dailyOrder';
+
+const getLocalDayStamp = (date) => Date.UTC(
+  date.getFullYear(),
+  date.getMonth(),
+  date.getDate()
+);
+
+const getOrderedDailyPlayers = () => {
+  const orderedPlayers = [];
+  const seenPlayers = new Set();
+
+  dailyPlayerOrder.forEach((playerName) => {
+    const player = players.find((entry) => entry.name === playerName);
+    if (player && !seenPlayers.has(player.name)) {
+      orderedPlayers.push(player);
+      seenPlayers.add(player.name);
+    }
+  });
+
+  return orderedPlayers;
+};
+
+const normalizeText = (value) => value.trim().toLowerCase();
+
+export const getPlayerSearchTerms = (player) => [
+  player.name,
+  ...(player.aliases || [])
+];
+
+export const matchesPlayerQuery = (player, query) => {
+  const normalizedQuery = normalizeText(query);
+  if (!normalizedQuery) return true;
+
+  return getPlayerSearchTerms(player).some((term) =>
+    normalizeText(term).includes(normalizedQuery)
+  );
+};
+
+export const findPlayerByNameOrAlias = (value) => {
+  const normalizedValue = normalizeText(value);
+
+  return players.find((player) =>
+    getPlayerSearchTerms(player).some((term) => normalizeText(term) === normalizedValue)
+  );
+};
 
 export const getDailyPlayer = () => {
-  const startDate = new Date('2023-12-01').getTime(); // Set your start date
-  const today = new Date().setHours(0, 0, 0, 0);
+  const startDate = getLocalDayStamp(new Date(2026, 3, 10));
+  const today = getLocalDayStamp(new Date());
   const diff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
-  return players[diff % players.length];
+  const orderedPlayers = getOrderedDailyPlayers();
+  if (orderedPlayers.length === 0) {
+    return players[0];
+  }
+  return orderedPlayers[diff % orderedPlayers.length];
 };
 
 export const getRandomPlayer = () => {

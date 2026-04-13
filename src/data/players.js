@@ -376,6 +376,7 @@ export const players = [
   },
   {
     name: "_Lynxier",
+    aliases: ["Sep"],
     debut: "Snow Day",
     canonFinale: 0,
     nonCanonFinale: 1,
@@ -736,6 +737,7 @@ export const players = [
   },
   {
     name: "Starstrewn",
+    aliases: ["Fish"],
     debut: "Snow Day",
     canonFinale: 0,
     nonCanonFinale: 0,

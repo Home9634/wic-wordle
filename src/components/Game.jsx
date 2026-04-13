@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
-import { players } from '../data/players';
-import { getDailyPlayer, getRandomPlayer } from '../utils/gameLogic';
+import { findPlayerByNameOrAlias, getDailyPlayer, getRandomPlayer } from '../utils/gameLogic';
 import { gameTypeByName } from '../data/gameCategories';
 import SearchBar from './SearchBar';
 import GuessRow from './GuessRow';
@@ -11,7 +10,7 @@ export default function Game({ mode, onBack }) {
   const [gameOver, setGameOver] = useState(false);
   const [roundSeed, setRoundSeed] = useState(0);
   const target = useMemo(() => {
-    return mode === 'daily' ? getDailyPlayer() : getRandomPlayer();
+    return mode === 'daily' ? getDailyPlayer() : (roundSeed, getRandomPlayer());
   }, [mode, roundSeed]);
   const handlePlayAgain = () => {
     setGuesses([]);
@@ -44,7 +43,7 @@ export default function Game({ mode, onBack }) {
   ];
 
   const handleGuess = (playerName) => {
-    const player = players.find(p => p.name === playerName);
+    const player = findPlayerByNameOrAlias(playerName);
     if (!player || guesses.find(g => g.name === playerName)) return;
 
     const newGuesses = [player, ...guesses];
@@ -112,7 +111,7 @@ export default function Game({ mode, onBack }) {
 
         <p className="mt-3 font-semibold">Game categories</p>
         <div className="mt-2 overflow-x-auto">
-          <table className="w-full min-w-[420px] border border-gray-600 text-left text-xs">
+          <table className="w-full min-w-105 border border-gray-600 text-left text-xs">
             <thead className="bg-gray-700 text-gray-100">
               <tr>
                 <th className="p-2 border-b border-gray-600">Game</th>

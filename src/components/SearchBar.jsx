@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { players } from '../data/players';
+import { matchesPlayerQuery } from '../utils/gameLogic';
 
 export default function SearchBar({ onGuess, disabledPlayers }) {
   const [query, setQuery] = useState("");
@@ -10,7 +11,7 @@ export default function SearchBar({ onGuess, disabledPlayers }) {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const visiblePlayers = availablePlayers.filter((player) =>
-    player.name.toLowerCase().includes(query.toLowerCase())
+    matchesPlayerQuery(player, query)
   );
 
   const handleSelect = (playerName) => {
