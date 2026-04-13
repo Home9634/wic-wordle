@@ -301,6 +301,7 @@ export const players = [
   },
   {
     name: "Juizxe",
+    aliases: ["Juice"],
     debut: "Kick-Off",
     canonFinale: 1,
     nonCanonFinale: 1,
