@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { findPlayerByNameOrAlias, getDailyPlayer, getRandomPlayer } from '../utils/gameLogic';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { compareStats, findPlayerByNameOrAlias, getDailyPlayer, getRandomPlayer } from '../utils/gameLogic';
 import { eventOrder } from '../data/events';
 import { gameTypeByName } from '../data/gameCategories';
 import SearchBar from './SearchBar';
@@ -43,13 +43,70 @@ const formatDailyLabel = (date = new Date()) => {
 
 const getDailyDayNumber = (date = new Date()) => {
   const startDateStamp = Date.UTC(
-    DAILY_START_DATE.getFullYear(),
-    DAILY_START_DATE.getMonth(),
-    DAILY_START_DATE.getDate()
+    DAILY_START_DATE.getUTCFullYear(),
+    DAILY_START_DATE.getUTCMonth(),
+    DAILY_START_DATE.getUTCDate()
   );
   const currentDateStamp = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
   const diff = Math.floor((currentDateStamp - startDateStamp) / (1000 * 60 * 60 * 24));
   return Math.max(1, diff + 1);
+};
+
+const statKeys = [
+  'name',
+  'debut',
+  'canonFinale',
+  'nonCanonFinale',
+  'canonPlayed',
+  'nonCanonPlayed',
+  'favGame',
+  'leastFavGame',
+  'bestGame',
+  'bestGameRetired',
+  'region',
+  'canonWins',
+  'nonCanonWins'
+];
+
+const feedbackToEmoji = (feedback) => {
+  switch (feedback) {
+    case 'correct':
+      return ':green_square:';
+    case 'close':
+    case 'close-higher':
+    case 'close-lower':
+      return ':orange_square:';
+    default:
+      return ':black_large_square:';
+  }
+};
+
+const buildShareLine = (guess, target) => {
+  const feedback = compareStats(guess, target);
+  return statKeys.map((key) => feedbackToEmoji(feedback[key])).join(' ');
+};
+
+const buildShareText = ({ guesses, target, dayLabel }) => {
+  const chronologicalGuesses = [...guesses].reverse();
+  const displayGuesses = chronologicalGuesses.length > 5
+    ? [...chronologicalGuesses.slice(0, 5), '...', chronologicalGuesses[chronologicalGuesses.length - 1]]
+    : chronologicalGuesses;
+
+  const lines = [
+    `Wing It Wordle ${dayLabel}`,
+    `${guesses.length} Guesse${guesses.length !== 1 ? 's' : ''}`,
+  ];
+
+  displayGuesses.forEach((guess) => {
+    if (guess === '...') {
+      lines.push('...');
+      return;
+    }
+
+    lines.push(buildShareLine(guess, target));
+  });
+
+  return lines.join('\n');
 };
 
 export default function Game({ mode, onBack }) {
@@ -57,10 +114,14 @@ export default function Game({ mode, onBack }) {
   const [gameOver, setGameOver] = useState(false);
   const [roundSeed, setRoundSeed] = useState(0);
   const [dailyHydrated, setDailyHydrated] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const toastTimeoutRef = useRef(null);
+  const isDevMode = import.meta.env.DEV;
 
   const dailyStorageKey = `wic-wordle-daily-${getUtcDateKey(new Date())}`;
   const now = new Date();
   const dailyDayLabel = `Day ${getDailyDayNumber(now)} - ${formatDailyLabel(now)}`;
+  const shareDayLabel = `Day ${getDailyDayNumber(now)} - ${formatDailyLabel(now)}`;
 
   const target = useMemo(() => {
     if (mode === 'daily') {
@@ -126,6 +187,44 @@ export default function Game({ mode, onBack }) {
       setRoundSeed(prev => prev + 1);
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleShare = async () => {
+    if (mode !== 'daily' || !target) return;
+
+    const shareText = buildShareText({ guesses, target, dayLabel: shareDayLabel });
+
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setToastMessage('Copied to Clipboard!');
+    } catch {
+      setToastMessage('Copy failed');
+    }
+
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage('');
+    }, 2000);
+  };
+
+  const handleResetDailyCache = () => {
+    if (mode !== 'daily') return;
+
+    localStorage.removeItem(dailyStorageKey);
+    setGuesses([]);
+    setGameOver(false);
+    setDailyHydrated(true);
+  };
   const gameCategoryRows = useMemo(() => {
     return Object.entries(gameTypeByName).sort(([gameA, categoryA], [gameB, categoryB]) => {
       const byCategory = categoryA.localeCompare(categoryB);
@@ -166,16 +265,24 @@ export default function Game({ mode, onBack }) {
       </button>
       <h2 className="text-xl my-4 capitalize">{mode} Mode</h2>
       {mode === 'daily' && (
-        <p className="-mt-2 mb-3 text-sm text-gray-300">
-          {dailyDayLabel}
-        </p>
+        <div className="-mt-2 mb-3 text-center">
+          <p className="text-sm text-gray-300">{dailyDayLabel}</p>
+          {isDevMode && (
+            <button
+              className="mt-2 rounded border border-orange-400/70 px-3 py-1 text-xs text-orange-200 hover:bg-orange-500/10"
+              onClick={handleResetDailyCache}
+            >
+              Reset daily cache
+            </button>
+          )}
+        </div>
       )}
 
       {gameOver ? (
         <div className="text-center">
           <p className="text-base text-white mb-4">You Got It In {guesses.length} Guesses!</p>
           {mode === 'daily' ? (
-            <button className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded cursor-pointer" onClick={() => {}}>
+            <button className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded cursor-pointer" onClick={handleShare}>
               Share
             </button>
           ) : (
@@ -274,6 +381,12 @@ export default function Game({ mode, onBack }) {
           </div>
         </div>
       </div>
+
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 min-w-64 rounded-md border border-emerald-200/70 bg-emerald-100/95 px-5 py-3 text-center text-sm font-semibold text-emerald-950 shadow-2xl shadow-emerald-950/20 backdrop-blur-sm">
+          {toastMessage}
+        </div>
+      )}
     </div>
   );
 }
