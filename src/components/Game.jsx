@@ -11,7 +11,12 @@ export default function Game({ mode, onBack }) {
   const [gameOver, setGameOver] = useState(false);
   const [roundSeed, setRoundSeed] = useState(0);
   const target = useMemo(() => {
-    return mode === 'daily' ? getDailyPlayer() : (roundSeed, getRandomPlayer());
+    if (mode === 'daily') {
+      return getDailyPlayer();
+    }
+
+    void roundSeed;
+    return getRandomPlayer();
   }, [mode, roundSeed]);
   const handlePlayAgain = () => {
     setGuesses([]);
@@ -45,7 +50,7 @@ export default function Game({ mode, onBack }) {
 
   const handleGuess = (playerName) => {
     const player = findPlayerByNameOrAlias(playerName);
-    if (!player || guesses.find(g => g.name === playerName)) return;
+    if (!player || !target || guesses.find(g => g.name === playerName)) return;
 
     const newGuesses = [player, ...guesses];
     setGuesses(newGuesses);
@@ -108,7 +113,8 @@ export default function Game({ mode, onBack }) {
           <ul className="mt-1 list-disc list-inside space-y-1 text-gray-200">
             <li>Number stats: orange when your guess is within ±2 of the target value.</li>
             <li>Debut: orange when your guess is within ±2 events (both canon and non-canon included) of the target debut.</li>
-            <li>Game stats: orange when guessed and target games are in the same category.</li>
+            <li>Favorite Game and Least Favorite Game: orange when guessed and target games are in the same category.</li>
+            <li>Best Game and Best Game (Retired): compare against the target player's full best-game set; green if your guess appears anywhere in that set, orange if it matches the category of any target best game.</li>
           </ul>
         </div>
 

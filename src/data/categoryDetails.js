@@ -33,11 +33,11 @@ export const categoryDetails = {
   },
   'Best Game': {
     title: 'Best Game',
-    description: `The player's Best Game in terms of Power Rankings.`
+    description: `The player's Best Game(s) in terms of Power Rankings. If the player has multiple Best Games, the guessed player's game will be compared to each Best Game until it finds a match.`
   },
   'Best Game (Retired)': {
     title: 'Best Game (Retired)',
-    description: `The player's Best Game in terms of Power Rankings, also counting retired games. (Dynaball, Bingo But Quick)`
+    description: `The player's Best Game in terms of Power Rankings, also counting retired games. (Dynaball, Bingo But Quick) If the player has multiple Best Games, the guessed player's game will be compared to each Best Game until it finds a match.`
   },
   Region: {
     title: 'Region',

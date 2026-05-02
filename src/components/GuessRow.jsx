@@ -9,6 +9,9 @@ export default function GuessRow({ guess, target }) {
   const feedback = compareStats(guess, target);
   const playerHead = `https://mc-heads.net/avatar/${encodeURIComponent(guess.name)}`;
 
+  const formatGameValue = (value) => Array.isArray(value) ? value.join(', ') : value;
+  const getPrimaryGameValue = (value) => Array.isArray(value) ? value[0] : value;
+
   const getGameArt = (gameName) => {
     if (!gameName) return null;
     return getGameArtByName(gameName);
@@ -61,19 +64,19 @@ export default function GuessRow({ guess, target }) {
       />
       <TableCell
         width="w-32"
-        content={guess.bestGame}
+        content={formatGameValue(guess.bestGame)}
         boxClass={getBoxClass('bestGame')}
-        iconSrc={getGameArt(guess.bestGame)}
-        iconAlt={guess.bestGame ? `${guess.bestGame} icon` : ''}
+        iconSrc={getGameArt(getPrimaryGameValue(guess.bestGame))}
+        iconAlt={getPrimaryGameValue(guess.bestGame) ? `${getPrimaryGameValue(guess.bestGame)} icon` : ''}
         iconSize={GAME_ICON_SIZE}
         truncateContent={false}
       />
       <TableCell
         width="w-32"
-        content={guess.bestGameRetired}
+        content={formatGameValue(guess.bestGameRetired)}
         boxClass={getBoxClass('bestGameRetired')}
-        iconSrc={getGameArt(guess.bestGameRetired)}
-        iconAlt={guess.bestGameRetired ? `${guess.bestGameRetired} icon` : ''}
+        iconSrc={getGameArt(getPrimaryGameValue(guess.bestGameRetired))}
+        iconAlt={getPrimaryGameValue(guess.bestGameRetired) ? `${getPrimaryGameValue(guess.bestGameRetired)} icon` : ''}
         iconSize={GAME_ICON_SIZE}
         truncateContent={false}
       />
