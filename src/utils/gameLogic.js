@@ -3,10 +3,10 @@ import { eventOrder } from '../data/events';
 import { gameTypeByName } from '../data/gameCategories';
 import { dailyPlayerOrder } from '../data/dailyOrder';
 
-const getLocalDayStamp = (date) => Date.UTC(
-  date.getFullYear(),
-  date.getMonth(),
-  date.getDate()
+const getUtcDayStamp = (date) => Date.UTC(
+  date.getUTCFullYear(),
+  date.getUTCMonth(),
+  date.getUTCDate()
 );
 
 const getOrderedDailyPlayers = () => {
@@ -57,19 +57,13 @@ export const findPlayerByNameOrAlias = (value) => {
 };
 
 export const getDailyPlayer = () => {
-  // BRO IM STUPID. THE INDEX STARTS FROM 0 FOR MONTH APPARNETLY. SO MAY 1ST IS MONTH 4 NOT 5. BUT FOR SOME REASON YEAR AND DAY ARE NORMAL?????????????
-  const startDate = getLocalDayStamp(new Date(2026, 4, 2));
-  const today = getLocalDayStamp(new Date());
+  const startDate = getUtcDayStamp(new Date(Date.UTC(2026, 4, 2)));
+  const today = getUtcDayStamp(new Date());
   const diff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
   const orderedPlayers = getOrderedDailyPlayers();
   if (orderedPlayers.length === 0) {
     return players[0];
   }
-  console.log(today)
-  console.log(startDate)
-  console.log(today - startDate)
-  console.log(diff)
-  
 
   const index = ((diff % orderedPlayers.length) + orderedPlayers.length) % orderedPlayers.length;
   return orderedPlayers[index];

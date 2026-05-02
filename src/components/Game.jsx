@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { findPlayerByNameOrAlias, getDailyPlayer, getRandomPlayer } from '../utils/gameLogic';
 import { eventOrder } from '../data/events';
 import { gameTypeByName } from '../data/gameCategories';
@@ -6,10 +6,62 @@ import SearchBar from './SearchBar';
 import GuessRow from './GuessRow';
 import CategoryHeaderCell from './CategoryHeaderCell';
 
+const DAILY_START_DATE = new Date(Date.UTC(2026, 4, 2));
+
+const getUtcDateKey = (date) => [
+  date.getUTCFullYear(),
+  String(date.getUTCMonth() + 1).padStart(2, '0'),
+  String(date.getUTCDate()).padStart(2, '0')
+].join('-');
+
+const getDaySuffix = (day) => {
+  const mod100 = day % 100;
+  if (mod100 >= 11 && mod100 <= 13) return 'th';
+  switch (day % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+};
+
+const formatDailyLabel = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC'
+  });
+
+  const parts = formatter.formatToParts(date);
+  const month = parts.find((part) => part.type === 'month')?.value ?? '';
+  const dayValue = Number(parts.find((part) => part.type === 'day')?.value ?? 1);
+  const year = parts.find((part) => part.type === 'year')?.value ?? '';
+
+  return `${month} ${dayValue}${getDaySuffix(dayValue)} ${year}`;
+};
+
+const getDailyDayNumber = (date = new Date()) => {
+  const startDateStamp = Date.UTC(
+    DAILY_START_DATE.getFullYear(),
+    DAILY_START_DATE.getMonth(),
+    DAILY_START_DATE.getDate()
+  );
+  const currentDateStamp = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const diff = Math.floor((currentDateStamp - startDateStamp) / (1000 * 60 * 60 * 24));
+  return Math.max(1, diff + 1);
+};
+
 export default function Game({ mode, onBack }) {
   const [guesses, setGuesses] = useState([]);
   const [gameOver, setGameOver] = useState(false);
   const [roundSeed, setRoundSeed] = useState(0);
+  const [dailyHydrated, setDailyHydrated] = useState(false);
+
+  const dailyStorageKey = `wic-wordle-daily-${getUtcDateKey(new Date())}`;
+  const now = new Date();
+  const dailyDayLabel = `Day ${getDailyDayNumber(now)} - ${formatDailyLabel(now)}`;
+
   const target = useMemo(() => {
     if (mode === 'daily') {
       return getDailyPlayer();
@@ -18,6 +70,55 @@ export default function Game({ mode, onBack }) {
     void roundSeed;
     return getRandomPlayer();
   }, [mode, roundSeed]);
+
+  useEffect(() => {
+    if (mode !== 'daily') {
+      setDailyHydrated(false);
+      setGuesses([]);
+      setGameOver(false);
+      return;
+    }
+
+    setDailyHydrated(false);
+
+    try {
+      const savedState = localStorage.getItem(dailyStorageKey);
+      if (!savedState) {
+        setGuesses([]);
+        setGameOver(false);
+        setDailyHydrated(true);
+        return;
+      }
+
+      const parsedState = JSON.parse(savedState);
+      const savedGuesses = Array.isArray(parsedState.guessNames)
+        ? parsedState.guessNames
+            .map((guessName) => findPlayerByNameOrAlias(guessName))
+            .filter(Boolean)
+        : [];
+
+      setGuesses(savedGuesses);
+      setGameOver(Boolean(parsedState.gameOver));
+    } catch {
+      setGuesses([]);
+      setGameOver(false);
+    } finally {
+      setDailyHydrated(true);
+    }
+  }, [dailyStorageKey, mode]);
+
+  useEffect(() => {
+    if (mode !== 'daily' || !dailyHydrated) return;
+
+    localStorage.setItem(
+      dailyStorageKey,
+      JSON.stringify({
+        guessNames: guesses.map((guess) => guess.name),
+        gameOver
+      })
+    );
+  }, [dailyHydrated, dailyStorageKey, gameOver, guesses, mode]);
+
   const handlePlayAgain = () => {
     setGuesses([]);
     setGameOver(false);
@@ -64,13 +165,24 @@ export default function Game({ mode, onBack }) {
         Back to Menu
       </button>
       <h2 className="text-xl my-4 capitalize">{mode} Mode</h2>
+      {mode === 'daily' && (
+        <p className="-mt-2 mb-3 text-sm text-gray-300">
+          {dailyDayLabel}
+        </p>
+      )}
 
       {gameOver ? (
         <div className="text-center">
           <p className="text-base text-white mb-4">You Got It In {guesses.length} Guesses!</p>
-          <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded cursor-pointer" onClick={handlePlayAgain}>
-            Play Again
-          </button>
+          {mode === 'daily' ? (
+            <button className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded cursor-pointer" onClick={() => {}}>
+              Share
+            </button>
+          ) : (
+            <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded cursor-pointer" onClick={handlePlayAgain}>
+              Play Again
+            </button>
+          )}
         </div>
       ) : (
         <>
