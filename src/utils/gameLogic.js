@@ -57,7 +57,8 @@ export const findPlayerByNameOrAlias = (value) => {
 };
 
 export const getDailyPlayer = () => {
-  const startDate = getUtcDayStamp(new Date(Date.UTC(2026, 4, 2)));
+  // BRO IM STUPID. THE INDEX STARTS FROM 0 FOR MONTH APPARENTLY. SO MAY IS 4 NOT 5. BUT FOR SOME REASON YEAR AND DAY ARE NORMAL??????????
+  const startDate = getUtcDayStamp(new Date(Date.UTC(2026, 4, 3)));
   const today = getUtcDayStamp(new Date());
   const diff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
   const orderedPlayers = getOrderedDailyPlayers();
@@ -71,6 +72,10 @@ export const getDailyPlayer = () => {
 
 export const getRandomPlayer = () => {
   return players[Math.floor(Math.random() * players.length)];
+};
+
+export const getTobyPlayer = () => {
+  return findPlayerByNameOrAlias('Tobfoolery') ?? players[0];
 };
 
 const statKeys = [

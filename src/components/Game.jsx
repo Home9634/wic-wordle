@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { compareStats, findPlayerByNameOrAlias, getDailyPlayer, getRandomPlayer } from '../utils/gameLogic';
+import { compareStats, findPlayerByNameOrAlias, getDailyPlayer, getRandomPlayer, getTobyPlayer } from '../utils/gameLogic';
 import { eventOrder } from '../data/events';
 import { gameTypeByName } from '../data/gameCategories';
 import SearchBar from './SearchBar';
 import GuessRow from './GuessRow';
 import CategoryHeaderCell from './CategoryHeaderCell';
 
-const DAILY_START_DATE = new Date(Date.UTC(2026, 4, 2));
+const DAILY_START_DATE = new Date(Date.UTC(2026, 4, 3));
 
 const getUtcDateKey = (date) => [
   date.getUTCFullYear(),
@@ -93,8 +93,8 @@ const buildShareText = ({ guesses, target, dayLabel }) => {
     : chronologicalGuesses;
 
   const lines = [
-    `Wing It Wordle ${dayLabel}`,
-    `${guesses.length} Guesse${guesses.length !== 1 ? 's' : ''}`,
+    dayLabel ? `Wing It Wordle ${dayLabel}` : 'Wing It Wordle',
+    `${guesses.length} Guess${guesses.length !== 1 ? 'es' : ''}`,
   ];
 
   displayGuesses.forEach((guess) => {
@@ -126,6 +126,10 @@ export default function Game({ mode, onBack }) {
   const target = useMemo(() => {
     if (mode === 'daily') {
       return getDailyPlayer();
+    }
+
+    if (mode === 'toby') {
+      return getTobyPlayer();
     }
 
     void roundSeed;
@@ -197,9 +201,13 @@ export default function Game({ mode, onBack }) {
   }, []);
 
   const handleShare = async () => {
-    if (mode !== 'daily' || !target) return;
+    if (!target || (mode !== 'daily' && mode !== 'toby')) return;
 
-    const shareText = buildShareText({ guesses, target, dayLabel: shareDayLabel });
+    const shareText = buildShareText({
+      guesses,
+      target,
+      dayLabel: mode === 'daily' ? shareDayLabel : ''
+    });
 
     try {
       await navigator.clipboard.writeText(shareText);
@@ -285,6 +293,15 @@ export default function Game({ mode, onBack }) {
             <button className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded cursor-pointer" onClick={handleShare}>
               Share
             </button>
+          ) : mode === 'toby' ? (
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button className="bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded cursor-pointer" onClick={handleShare}>
+                Share
+              </button>
+              <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded cursor-pointer" onClick={handlePlayAgain}>
+                Play Again
+              </button>
+            </div>
           ) : (
             <button className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded cursor-pointer" onClick={handlePlayAgain}>
               Play Again

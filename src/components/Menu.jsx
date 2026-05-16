@@ -8,22 +8,32 @@ export default function Menu({ onSelectMode }) {
 
       <div className="flex flex-col gap-4 w-full max-w-xs">
         {/* Daily Mode Button */}
-        <button 
+        <button
           onClick={() => onSelectMode('daily')}
           className="p-4 border-2 hover:bg-white hover:text-black transition-colors cursor-pointer"
         >
           Daily Challenge
-          <p className="text-xs mt-1">New player every 24h (NOT WORKING RN)</p>
+          <p className="text-xs mt-1">New player every 24h</p>
         </button>
 
         {/* Quick Play Button */}
-        <button 
+        <button
           onClick={() => onSelectMode('quick')}
           className="p-4 border-2 hover:bg-white hover:text-black transition-colors cursor-pointer"
         >
           Quick Play
           <p className="text-xs mt-1">Infinite random players</p>
         </button>
+
+        {/* Toby Mode Button */}
+        <button
+          onClick={() => onSelectMode('toby')}
+            className="w-1/2 self-center px-3 py-2 border-2 hover:bg-white hover:text-black transition-colors cursor-pointer"
+        >
+            <span className="text-sm">Toby</span>
+            <p className="text-[10px] mt-1 leading-tight">Toby Tobfoolery</p>
+        </button>
+
       </div>
 
       {/* Footer / Credits */}

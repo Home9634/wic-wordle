@@ -3,7 +3,7 @@ import Menu from './components/Menu';
 import Game from './components/Game';
 
 export default function App() {
-  const [mode, setMode] = useState('menu'); // menu, daily, quick
+  const [mode, setMode] = useState('menu'); // menu, daily, toby, quick
 
   return (
     <div className="min-h-screen font-minecraft"> 
