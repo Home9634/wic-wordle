@@ -5,10 +5,11 @@ import { getGameArtByName } from '../data/icons';
 const PLAYER_ICON_SIZE = 'h-6 w-6';
 const GAME_ICON_SIZE = 'h-6 w-6';
 
-export default function GuessRow({ guess, target }) {
+export default function GuessRow({ guess, target, visibleStats = null }) {
   const feedback = compareStats(guess, target);
   const playerHead = `https://mc-heads.net/avatar/${encodeURIComponent(guess.name)}`;
 
+  // --- HELPERS ---
   const formatGameValue = (value) => Array.isArray(value) ? value.join(', ') : value;
   const getPrimaryGameValue = (value) => Array.isArray(value) ? value[0] : value;
 
@@ -17,7 +18,6 @@ export default function GuessRow({ guess, target }) {
     return getGameArtByName(gameName);
   };
 
-  // Helper to determine tailwind classes based on logic
   const getBoxClass = (key) => {
     const stat = feedback[key];
     if (stat === "correct") return "bg-green-700";
@@ -29,60 +29,108 @@ export default function GuessRow({ guess, target }) {
     return "bg-gray-500";
   };
 
+  /**
+   * Visibility Logic:
+   * If visibleStats is null (Single Player), always show.
+   * Otherwise, only show if the specific key is in the array.
+   */
+  const show = (key) => {
+    if (!visibleStats) return true;
+    return visibleStats.includes(key);
+  };
+
   return (
     <div className="flex gap-1 mb-1 text-white text-xs text-center align-middle">
-    <TableCell
-      width="w-36"
-      content={guess.name}
-      boxClass={getBoxClass('name')}
-      iconSrc={playerHead}
-      iconAlt={`${guess.name} head`}
-      iconSize={PLAYER_ICON_SIZE}
-    />
-      <TableCell width="w-32" content={guess.debut} boxClass={getBoxClass('debut')} />
-      <TableCell width="w-16" content={guess.canonFinale} boxClass={getBoxClass('canonFinale')} />
-      <TableCell width="w-16" content={guess.nonCanonFinale} boxClass={getBoxClass('nonCanonFinale')} />
-      <TableCell width="w-16" content={guess.canonPlayed} boxClass={getBoxClass('canonPlayed')} />
-      <TableCell width="w-16" content={guess.nonCanonPlayed} boxClass={getBoxClass('nonCanonPlayed')} />
+
       <TableCell
-        width="w-32"
-        content={guess.favGame || 'N/A'}
-        boxClass={getBoxClass('favGame')}
-        iconSrc={getGameArt(guess.favGame)}
-        iconAlt={guess.favGame ? `${guess.favGame} icon` : ''}
-        iconSize={GAME_ICON_SIZE}
-        truncateContent={false}
+        width="w-36"
+        content={guess.name}
+        boxClass={getBoxClass('name')}
+        iconSrc={playerHead}
+        iconAlt={`${guess.name} head`}
+        iconSize={PLAYER_ICON_SIZE}
       />
-      <TableCell
-        width="w-32"
-        content={guess.leastFavGame || 'N/A'}
-        boxClass={getBoxClass('leastFavGame')}
-        iconSrc={getGameArt(guess.leastFavGame)}
-        iconAlt={guess.leastFavGame ? `${guess.leastFavGame} icon` : ''}
-        iconSize={GAME_ICON_SIZE}
-        truncateContent={false}
-      />
-      <TableCell
-        width="w-32"
-        content={formatGameValue(guess.bestGame)}
-        boxClass={getBoxClass('bestGame')}
-        iconSrc={getGameArt(getPrimaryGameValue(guess.bestGame))}
-        iconAlt={getPrimaryGameValue(guess.bestGame) ? `${getPrimaryGameValue(guess.bestGame)} icon` : ''}
-        iconSize={GAME_ICON_SIZE}
-        truncateContent={false}
-      />
-      <TableCell
-        width="w-32"
-        content={formatGameValue(guess.bestGameRetired)}
-        boxClass={getBoxClass('bestGameRetired')}
-        iconSrc={getGameArt(getPrimaryGameValue(guess.bestGameRetired))}
-        iconAlt={getPrimaryGameValue(guess.bestGameRetired) ? `${getPrimaryGameValue(guess.bestGameRetired)} icon` : ''}
-        iconSize={GAME_ICON_SIZE}
-        truncateContent={false}
-      />
-      <TableCell width="w-16" content={guess.region || '?'} boxClass={getBoxClass('region')} />
-      <TableCell width="w-16" content={guess.canonWins} boxClass={getBoxClass('canonWins')} />
-      <TableCell width="w-16" content={guess.nonCanonWins} boxClass={getBoxClass('nonCanonWins')} />
+
+      {show('debut') && (
+        <TableCell width="w-32" content={guess.debut} boxClass={getBoxClass('debut')} />
+      )}
+
+      {show('canonFinale') && (
+        <TableCell width="w-16" content={guess.canonFinale} boxClass={getBoxClass('canonFinale')} />
+      )}
+
+      {show('nonCanonFinale') && (
+        <TableCell width="w-16" content={guess.nonCanonFinale} boxClass={getBoxClass('nonCanonFinale')} />
+      )}
+
+      {show('canonPlayed') && (
+        <TableCell width="w-16" content={guess.canonPlayed} boxClass={getBoxClass('canonPlayed')} />
+      )}
+
+      {show('nonCanonPlayed') && (
+        <TableCell width="w-16" content={guess.nonCanonPlayed} boxClass={getBoxClass('nonCanonPlayed')} />
+      )}
+
+      {show('favGame') && (
+        <TableCell
+          width="w-32"
+          content={guess.favGame || 'N/A'}
+          boxClass={getBoxClass('favGame')}
+          iconSrc={getGameArt(guess.favGame)}
+          iconAlt={guess.favGame ? `${guess.favGame} icon` : ''}
+          iconSize={GAME_ICON_SIZE}
+          truncateContent={false}
+        />
+      )}
+
+      {show('leastFavGame') && (
+        <TableCell
+          width="w-32"
+          content={guess.leastFavGame || 'N/A'}
+          boxClass={getBoxClass('leastFavGame')}
+          iconSrc={getGameArt(guess.leastFavGame)}
+          iconAlt={guess.leastFavGame ? `${guess.leastFavGame} icon` : ''}
+          iconSize={GAME_ICON_SIZE}
+          truncateContent={false}
+        />
+      )}
+
+      {show('bestGame') && (
+        <TableCell
+          width="w-32"
+          content={formatGameValue(guess.bestGame)}
+          boxClass={getBoxClass('bestGame')}
+          iconSrc={getGameArt(getPrimaryGameValue(guess.bestGame))}
+          iconAlt={getPrimaryGameValue(guess.bestGame) ? `${getPrimaryGameValue(guess.bestGame)} icon` : ''}
+          iconSize={GAME_ICON_SIZE}
+          truncateContent={false}
+        />
+      )}
+
+      {show('bestGameRetired') && (
+        <TableCell
+          width="w-32"
+          content={formatGameValue(guess.bestGameRetired)}
+          boxClass={getBoxClass('bestGameRetired')}
+          iconSrc={getGameArt(getPrimaryGameValue(guess.bestGameRetired))}
+          iconAlt={getPrimaryGameValue(guess.bestGameRetired) ? `${getPrimaryGameValue(guess.bestGameRetired)} icon` : ''}
+          iconSize={GAME_ICON_SIZE}
+          truncateContent={false}
+        />
+      )}
+
+      {show('region') && (
+        <TableCell width="w-16" content={guess.region || '?'} boxClass={getBoxClass('region')} />
+      )}
+
+      {show('canonWins') && (
+        <TableCell width="w-16" content={guess.canonWins} boxClass={getBoxClass('canonWins')} />
+      )}
+
+      {show('nonCanonWins') && (
+        <TableCell width="w-16" content={guess.nonCanonWins} boxClass={getBoxClass('nonCanonWins')} />
+      )}
+
     </div>
   );
 }

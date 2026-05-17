@@ -29,6 +29,12 @@ export default function SearchBar({ onGuess, disabledPlayers }) {
           setQuery(e.target.value);
           setIsOpen(true);
         }}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter') return;
+          if (visiblePlayers.length !== 1) return;
+          e.preventDefault();
+          handleSelect(visiblePlayers[0].name);
+        }}
         onFocus={() => setIsOpen(true)}
         onClick={() => setIsOpen(true)}
         onBlur={() => setIsOpen(false)}

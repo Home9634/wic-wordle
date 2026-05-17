@@ -5,6 +5,7 @@ import { gameTypeByName } from '../data/gameCategories';
 import SearchBar from './SearchBar';
 import GuessRow from './GuessRow';
 import CategoryHeaderCell from './CategoryHeaderCell';
+import GuessTable from './GuessTable';
 
 const DAILY_START_DATE = new Date(Date.UTC(2026, 4, 3));
 
@@ -240,21 +241,6 @@ export default function Game({ mode, onBack }) {
       return gameA.localeCompare(gameB);
     });
   }, []);
-  const categories = [
-    "Player",
-    "Debut",
-    "Canon Finales",
-    "Non-Canon Finales",
-    "Canon Played",
-    "Non-Canon Played",
-    "Favorite Game",
-    "Least Favorite Game",
-    "Best Game",
-    "Best Game (Retired)",
-    "Region",
-    "Canon Wins",
-    "Non-Canon Wins"
-  ];
 
   const handleGuess = (playerName) => {
     const player = findPlayerByNameOrAlias(playerName);
@@ -317,24 +303,7 @@ export default function Game({ mode, onBack }) {
         </>
       )}
 
-      <div className="w-full overflow-x-auto mt-8">
-        <div className="w-max mx-auto"> {/* Container for 13 columns */}
-          <div className="flex gap-1 mb-1 text-white text-xs text-center"> {/* Header Row */}
-            {categories.map((cat, i) => (
-              <CategoryHeaderCell
-                key={i}
-                category={cat}
-                width={cat === "Player" ? "w-36" : cat.includes('Game') || cat.includes("Debut") ? "w-32" : "w-16"}
-                boxClass={cat === "Player" ? "bg-gray-700" : "bg-gray-600"}
-              />
-            ))}
-          </div>
-
-          {guesses.map((g, i) => (
-            <GuessRow key={i} guess={g} target={target} />
-          ))}
-        </div>
-      </div>
+      <GuessTable guesses={guesses} target={target} />
 
       <div className="mt-6 w-full max-w-5xl rounded-md border border-gray-600 bg-gray-800/70 p-2.5 text-xs text-gray-100">
         <div className="text-center">
