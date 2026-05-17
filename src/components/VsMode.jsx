@@ -622,6 +622,7 @@ export default function VsMode({ onBack }) {
     <VsHome
       state={state}
       visibleStats={visibleStats}
+      onBackToMenu={handleBackToMenu}
       onNicknameChange={(event) => setState((previous) => ({ ...previous, nickname: event.target.value }))}
       onJoinCodeChange={(event) => setState((previous) => ({ ...previous, joinCode: event.target.value }))}
       onViewChange={(newView) => setState((previous) => ({ ...previous, view: newView, statusMessage: '' }))}

@@ -26,14 +26,14 @@ export default function VsGame({
   const opponentRoundsWon = Number.isFinite(matchSummary.opponentScore) ? matchSummary.opponentScore : 0;
 
   return (
-    <div className="min-h-screen bg-[#090909] px-3 py-4 text-white sm:px-4">
+    <div className="min-h-screen bg-[#1a1a1a] px-3 py-4 text-white sm:px-4">
       <div className="mx-auto flex w-full max-w-full flex-col gap-4">
-        <div className="flex items-center justify-between gap-3">
-          <button className="rounded-full border border-white/15 px-4 py-2 text-sm hover:bg-white/10" onClick={onBackToMenu}>
-            Back to menu
+        <div className="flex justify-center">
+          <button className="bg-slate-500 hover:bg-slate-600 text-white py-2 px-4 rounded cursor-pointer" onClick={onBackToMenu}>
+            Back to Menu
           </button>
-          <div className="text-right text-xs uppercase tracking-[0.3em] text-white/45">VS Mode</div>
         </div>
+        <h2 className="text-center text-xl">VS Mode</h2>
 
         <div className="rounded-3xl border border-white/10 bg-white/5 px-3 py-3 shadow-2xl shadow-black/30 sm:px-4">
           <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_3px_minmax(0,1fr)] lg:gap-0">
@@ -88,10 +88,6 @@ export default function VsGame({
                   <span className="font-semibold text-white">Rounds won</span>
                 </div>
               </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-xs leading-5 text-white/60">
-              Live opponent data is synced over PeerJS in real time.
             </div>
           </div>
         </div>

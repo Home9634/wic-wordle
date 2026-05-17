@@ -30,7 +30,7 @@ export default function Menu({ onSelectMode }) {
           className="p-4 border-2 hover:bg-white hover:text-black transition-colors cursor-pointer"
         >
           VS Mode
-          <p className="text-xs mt-1">Private 1v1 lobby prototype</p>
+          <p className="text-xs mt-1">1v1 challenge prototype</p>
         </button>
 
         {/* Toby Mode Button */}
