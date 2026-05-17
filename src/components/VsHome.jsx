@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import StatSelector from './StatSelector';
+import Tooltip from './Tooltip';
 
 export default function VsHome({
   state,
@@ -13,6 +15,19 @@ export default function VsHome({
   onStartMatch,
   onResetSession,
 }) {
+  const [roundsInput, setRoundsInput] = useState(String(state.settings.rounds ?? 3));
+
+  useEffect(() => {
+    setRoundsInput(String(state.settings.rounds ?? 3));
+  }, [state.settings.rounds]);
+
+  const normalizeRounds = () => {
+    const parsed = Number.parseInt(roundsInput, 10);
+    const nextRounds = Number.isFinite(parsed) ? Math.min(9, Math.max(1, parsed)) : 3;
+    setRoundsInput(String(nextRounds));
+    onUpdateSettings({ rounds: nextRounds });
+  };
+
   return (
     <div className="min-h-screen bg-[#1a1a1a] px-4 py-8 text-white">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -29,7 +44,7 @@ export default function VsHome({
               <div>
                 <h1 className="text-4xl font-black tracking-tight">Wing It Wordle VS</h1>
                 <p className="mt-3 max-w-xl text-sm leading-6 text-white/65">
-                Challenge a friend in a 1v1 Wing It Wordle race.
+                  Challenge a friend in a 1v1 Wing It Wordle race.
                 </p>
               </div>
 
@@ -145,55 +160,90 @@ export default function VsHome({
                         <h2 className="text-xl font-semibold">Lobby settings</h2>
                         <p className="text-sm text-white/55">Defaults are saved locally and can be changed by the host.</p>
                       </div>
-                      <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/60">
-                        {state.settings.matchMode}
-                      </span>
                     </div>
 
                     <div className="grid gap-3 md:grid-cols-2">
                       <label className="block rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-white/50">Match mode</span>
-                        <select
-                          value={state.settings.matchMode}
-                          disabled={!state.isHost}
-                          onChange={(event) => onUpdateSettings({ matchMode: event.target.value })}
-                          className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 outline-none disabled:opacity-50"
-                        >
-                          <option value="round">Round</option>
-                          <option value="continuous">Continuous</option>
-                        </select>
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="block text-xs uppercase tracking-[0.2em] text-white/50">Match mode</span>
+                          <Tooltip
+                            title="Match mode"
+                            description="'Round' waits for each player to finish the round to continue. 'Continuous' lets players go through each round on their own time."
+                          />
+                        </div>
+                        <div className="relative">
+                          <select
+                            value={state.settings.matchMode}
+                            disabled={!state.isHost}
+                            onChange={(event) => onUpdateSettings({ matchMode: event.target.value })}
+                            className="w-full appearance-none rounded-xl border border-white/10 bg-black/30 px-3 py-2 pr-8 outline-none disabled:opacity-50"
+                          >
+                            <option value="round">Round</option>
+                            <option value="continuous">Continuous</option>
+                          </select>
+                          <svg className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 8L10 12L14 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
                       </label>
 
                       <label className="block rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-white/50">Score mode</span>
-                        <select
-                          value={state.settings.scoreMode}
-                          disabled={!state.isHost}
-                          onChange={(event) => onUpdateSettings({ scoreMode: event.target.value })}
-                          className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 outline-none disabled:opacity-50"
-                        >
-                          <option value="time">Time</option>
-                          <option value="guesses">Guesses</option>
-                        </select>
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="block text-xs uppercase tracking-[0.2em] text-white/50">Score mode</span>
+                          <Tooltip
+                            title="Score mode"
+                            description="'Time' ranks by time to solve; 'Guesses' ranks by fewest guesses. Affects how rounds are decided."
+                          />
+                        </div>
+                        <div className="relative">
+                          <select
+                            value={state.settings.scoreMode}
+                            disabled={!state.isHost}
+                            onChange={(event) => onUpdateSettings({ scoreMode: event.target.value })}
+                            className="w-full appearance-none rounded-xl border border-white/10 bg-black/30 px-3 py-2 pr-8 outline-none disabled:opacity-50"
+                          >
+                            <option value="time">Time</option>
+                            <option value="guesses">Guesses</option>
+                          </select>
+                          <svg className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-white/60" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 8L10 12L14 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
                       </label>
 
                       <label className="block rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-white/50">Rounds</span>
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="block text-xs uppercase tracking-[0.2em] text-white/50">Rounds</span>
+                          <Tooltip
+                            title="Rounds"
+                            description="Number of rounds in this match (1–9). The host can change this before starting."
+                          />
+                        </div>
                         <input
-                          type="number"
-                          min="1"
-                          max="9"
-                          value={state.settings.rounds}
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="3"
+                          value={roundsInput}
                           disabled={!state.isHost}
-                          onChange={(event) => onUpdateSettings({ rounds: Number(event.target.value) })}
+                          onChange={(event) => setRoundsInput(event.target.value)}
+                          onBlur={normalizeRounds}
                           className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 outline-none disabled:opacity-50"
                         />
                       </label>
 
                       <label className="block rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <span className="mb-2 block text-xs uppercase tracking-[0.2em] text-white/50">
-                          {state.settings.scoreMode === 'time' ? 'Cooldown between guesses' : 'Time limit per round'}
-                        </span>
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="block text-xs uppercase tracking-[0.2em] text-white/50">
+                            {state.settings.scoreMode === 'time' ? 'Cooldown between guesses' : 'Time limit per round'}
+                          </span>
+                          <Tooltip
+                            title={state.settings.scoreMode === 'time' ? 'Cooldown between guesses' : 'Time limit per round'}
+                            description={state.settings.scoreMode === 'time'
+                              ? 'Seconds to wait between allowed guesses when using Time score mode.'
+                              : 'Maximum seconds allowed to solve each round when using Time Limit mode.'
+                            }
+                          />
+                        </div>
                         <input
                           type="number"
                           min="0"
