@@ -15,16 +15,52 @@ export default function VsHome({
   onResetSession,
 }) {
   const [roundsInput, setRoundsInput] = useState(String(state.settings.rounds ?? 3));
+  const [cooldownSecondsInput, setCooldownSecondsInput] = useState(String(state.settings.cooldownSeconds ?? 0));
+  const [timeLimitSecondsInput, setTimeLimitSecondsInput] = useState(String(state.settings.timeLimitSeconds ?? 120));
+  const [randomizedPlayerCountInput, setRandomizedPlayerCountInput] = useState(String(state.settings.randomizedPlayerCount ?? 0));
 
   useEffect(() => {
     setRoundsInput(String(state.settings.rounds ?? 3));
   }, [state.settings.rounds]);
+
+  useEffect(() => {
+    setCooldownSecondsInput(String(state.settings.cooldownSeconds ?? 0));
+  }, [state.settings.cooldownSeconds]);
+
+  useEffect(() => {
+    setTimeLimitSecondsInput(String(state.settings.timeLimitSeconds ?? 120));
+  }, [state.settings.timeLimitSeconds]);
+
+  useEffect(() => {
+    setRandomizedPlayerCountInput(String(state.settings.randomizedPlayerCount ?? 0));
+  }, [state.settings.randomizedPlayerCount]);
 
   const normalizeRounds = () => {
     const parsed = Number.parseInt(roundsInput, 10);
     const nextRounds = Number.isFinite(parsed) ? Math.min(9, Math.max(1, parsed)) : 3;
     setRoundsInput(String(nextRounds));
     onUpdateSettings({ rounds: nextRounds });
+  };
+
+  const normalizeCooldownSeconds = () => {
+    const parsed = Number.parseInt(cooldownSecondsInput, 10);
+    const nextCooldown = Number.isFinite(parsed) ? Math.min(15, Math.max(0, parsed)) : 0;
+    setCooldownSecondsInput(String(nextCooldown));
+    onUpdateSettings({ cooldownSeconds: nextCooldown });
+  };
+
+  const normalizeTimeLimitSeconds = () => {
+    const parsed = Number.parseInt(timeLimitSecondsInput, 10);
+    const nextTimeLimit = Number.isFinite(parsed) ? Math.min(600, Math.max(15, parsed)) : 120;
+    setTimeLimitSecondsInput(String(nextTimeLimit));
+    onUpdateSettings({ timeLimitSeconds: nextTimeLimit });
+  };
+
+  const normalizeRandomizedPlayerCount = () => {
+    const parsed = Number.parseInt(randomizedPlayerCountInput, 10);
+    const nextCount = Number.isFinite(parsed) ? Math.min(3, Math.max(0, parsed)) : 0;
+    setRandomizedPlayerCountInput(String(nextCount));
+    onUpdateSettings({ randomizedPlayerCount: nextCount });
   };
 
   return (
@@ -244,15 +280,46 @@ export default function VsHome({
                           />
                         </div>
                         <input
-                          type="number"
+                          type="text"
+                          inputMode="numeric"
                           min="0"
-                          value={state.settings.scoreMode === 'time' ? state.settings.cooldownSeconds : state.settings.timeLimitSeconds}
+                          placeholder={state.settings.scoreMode === 'time' ? '0' : '120'}
+                          value={state.settings.scoreMode === 'time' ? cooldownSecondsInput : timeLimitSecondsInput}
                           disabled={!state.isHost}
-                          onChange={(event) => onUpdateSettings(
-                            state.settings.scoreMode === 'time'
-                              ? { cooldownSeconds: Number(event.target.value) }
-                              : { timeLimitSeconds: Number(event.target.value) }
-                          )}
+                          onChange={(event) => {
+                            if (state.settings.scoreMode === 'time') {
+                              setCooldownSecondsInput(event.target.value);
+                            } else {
+                              setTimeLimitSecondsInput(event.target.value);
+                            }
+                          }}
+                          onBlur={() => {
+                            if (state.settings.scoreMode === 'time') {
+                              normalizeCooldownSeconds();
+                            } else {
+                              normalizeTimeLimitSeconds();
+                            }
+                          }}
+                          className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 outline-none disabled:opacity-50"
+                        />
+                      </label>
+
+                      <label className="block rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="block text-xs uppercase tracking-[0.2em] text-white/50">Randomized players</span>
+                          <Tooltip
+                            title="Randomized players"
+                            description="Number of random players to pre-select at the start of each round (0–3)."
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={randomizedPlayerCountInput}
+                          disabled={!state.isHost}
+                          onChange={(event) => setRandomizedPlayerCountInput(event.target.value)}
+                          onBlur={normalizeRandomizedPlayerCount}
                           className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 outline-none disabled:opacity-50"
                         />
                       </label>

@@ -17,6 +17,7 @@ export const normalizeVsSettings = (settings) => {
     rounds: clampInt(input.rounds, 1, 9, 3),
     cooldownSeconds: clampInt(input.cooldownSeconds, 0, 15, 0),
     timeLimitSeconds: clampInt(input.timeLimitSeconds, 15, 600, 120),
+    randomizedPlayerCount: clampInt(input.randomizedPlayerCount, 0, 3, 0),
     visibleStats: Array.isArray(input.visibleStats) && input.visibleStats.length > 0
       ? input.visibleStats.filter((key) => DEFAULT_VISIBLE_STATS.includes(key))
       : DEFAULT_VISIBLE_STATS,

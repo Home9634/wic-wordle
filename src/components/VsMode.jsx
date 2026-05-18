@@ -7,7 +7,7 @@ import { DEFAULT_VISIBLE_STATS, PEER_CONFIG } from './vsModeConstants';
 import { loadVsNickname, loadVsSettings, normalizeVsSettings, saveVsNickname, saveVsSettings } from '../utils/vsStorage';
 import { getMatchWinner, getRoundMetric } from '../utils/vsGameHelpers';
 import { players } from '../data/players';
-import { findPlayerByNameOrAlias } from '../utils/gameLogic';
+import { findPlayerByNameOrAlias, getRandomPlayers } from '../utils/gameLogic';
 
 const DEBUG_MODE = false;
 
@@ -52,18 +52,21 @@ const debugState = {
 const pickRandomTarget = () => players[Math.floor(Math.random() * players.length)];
 const generateLobbyCode = () => String(Math.floor(Math.random() * 900) + 100);
 
-const initialRoundState = (target, roundIndex) => ({
-  roundIndex,
-  target,
-  startedAt: Date.now(),
-  localGuesses: [],
-  opponentGuesses: [],
-  localResult: null,
-  opponentResult: null,
-  winner: null,
-  lastGuessAt: null,
-  opponentLastGuessAt: null,
-});
+const initialRoundState = (target, roundIndex, randomizedPlayerCount = 0) => {
+  const randomPlayers = randomizedPlayerCount > 0 ? getRandomPlayers(randomizedPlayerCount) : [];
+  return {
+    roundIndex,
+    target,
+    startedAt: Date.now(),
+    localGuesses: randomPlayers.map(p => p.name),
+    opponentGuesses: randomPlayers.map(p => p.name),
+    localResult: null,
+    opponentResult: null,
+    winner: null,
+    lastGuessAt: null,
+    opponentLastGuessAt: null,
+  };
+};
 
 const initialRematchState = () => ({
   localReady: false,
@@ -266,11 +269,20 @@ export default function VsMode({ onBack }) {
       }
       case 'game:start': {
         const incomingRounds = Array.isArray(data.rounds) ? data.rounds : [];
-        const nextRounds = incomingRounds.map((target, roundIndex) => {
-          const resolvedTarget = typeof target === 'string'
-            ? findPlayerByNameOrAlias(target)
-            : findPlayerByNameOrAlias(target?.name || '') || target;
-          return initialRoundState(resolvedTarget || pickRandomTarget(), roundIndex);
+        const nextRounds = incomingRounds.map((roundData, roundIndex) => {
+          // Support both old format (just target) and new format (object with target and initialGuesses)
+          const roundObj = typeof roundData === 'string' || (roundData && roundData.name) ? { target: roundData } : roundData;
+          const target = typeof roundObj.target === 'string'
+            ? findPlayerByNameOrAlias(roundObj.target)
+            : findPlayerByNameOrAlias(roundObj.target?.name || '') || roundObj.target;
+          
+          const round = initialRoundState(target || pickRandomTarget(), roundIndex, 0);
+          // Apply initial guesses from host if they exist
+          if (Array.isArray(roundObj.initialGuesses)) {
+            round.localGuesses = roundObj.initialGuesses;
+            round.opponentGuesses = roundObj.initialGuesses;
+          }
+          return round;
         });
 
         setState((previous) => ({
@@ -601,7 +613,7 @@ export default function VsMode({ onBack }) {
 
   const startMatch = () => {
     if (!state.isHost) return;
-    const rounds = Array.from({ length: state.settings.rounds }, (_, roundIndex) => initialRoundState(pickRandomTarget(), roundIndex));
+    const rounds = Array.from({ length: state.settings.rounds }, (_, roundIndex) => initialRoundState(pickRandomTarget(), roundIndex, state.settings.randomizedPlayerCount));
 
     setState((previous) => ({
       ...previous,
@@ -616,7 +628,10 @@ export default function VsMode({ onBack }) {
     sendMessage({
       type: 'game:start',
       settings: state.settings,
-      rounds: rounds.map((round) => round.target),
+      rounds: rounds.map((round) => ({
+        target: round.target,
+        initialGuesses: round.localGuesses,
+      })),
     });
   };
 

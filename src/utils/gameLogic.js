@@ -74,6 +74,13 @@ export const getRandomPlayer = () => {
   return players[Math.floor(Math.random() * players.length)];
 };
 
+export const getRandomPlayers = (count) => {
+  if (count <= 0 || players.length === 0) return [];
+  const n = Math.min(count, players.length);
+  const shuffled = [...players].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, n);
+};
+
 export const getTobyPlayer = () => {
   return findPlayerByNameOrAlias('Tobfoolery') ?? players[0];
 };
