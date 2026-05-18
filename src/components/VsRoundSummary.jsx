@@ -82,7 +82,7 @@ export default function VsRoundSummary({
       <div className={`flex w-full items-center gap-2 ${isLeft ? 'justify-end' : 'justify-start'}`}>
         {isLeft ? (
           <>
-            <span className="truncate text-sm font-semibold text-white/80">{nickname || 'You'}</span>
+            <span className="truncate text-sm font-semibold text-white/80">{nickname}</span>
             <span className=" border-emerald-400/30 bg-emerald-500/15 px-3 py-1.5 text-sm font-bold text-emerald-200 shadow-sm shadow-emerald-500/10">
               {score}
             </span>
@@ -92,7 +92,7 @@ export default function VsRoundSummary({
             <span className=" border-rose-400/30 bg-rose-500/15 px-3 py-1.5 text-sm font-bold text-rose-200 shadow-sm shadow-rose-500/10">
               {score}
             </span>
-            <span className="truncate text-sm font-semibold text-white/80">{nickname || 'Opponent'}</span>
+            <span className="truncate text-sm font-semibold text-white/80">{nickname}</span>
           </>
         )}
       </div>
