@@ -65,6 +65,13 @@ const initialRoundState = (target, roundIndex) => ({
   opponentLastGuessAt: null,
 });
 
+const initialRematchState = () => ({
+  localReady: false,
+  opponentReady: false,
+  localLeft: false,
+  opponentLeft: false,
+});
+
 const defaultState = () => ({
   view: 'home',
   nickname: loadVsNickname(),
@@ -78,6 +85,7 @@ const defaultState = () => ({
   currentRoundIndex: 0,
   roundStates: [],
   finalOutcome: null,
+  rematch: initialRematchState(),
 });
 
 export default function VsMode({ onBack }) {
@@ -182,6 +190,7 @@ export default function VsMode({ onBack }) {
           ...previous,
           roundStates: resolvedRounds,
           finalOutcome: getMatchWinner(resolvedRounds, previous.settings.scoreMode),
+          rematch: initialRematchState(),
           view: 'results',
         };
       }
@@ -272,19 +281,55 @@ export default function VsMode({ onBack }) {
           finalOutcome: null,
           settings: previous.isHost ? previous.settings : normalizeVsSettings(data.settings ?? previous.settings),
           statusMessage: 'Match started.',
+          rematch: initialRematchState(),
+        }));
+        break;
+      }
+      case 'results:ready': {
+        if (typeof data.ready !== 'boolean') return;
+        setState((previous) => {
+          const nextRematch = {
+            ...(previous.rematch ?? initialRematchState()),
+            opponentReady: data.ready,
+            opponentLeft: false,
+          };
+
+          const nextState = {
+            ...previous,
+            rematch: nextRematch,
+          };
+
+          if (previous.isHost && previous.view === 'results' && nextRematch.localReady && nextRematch.opponentReady && !nextRematch.localLeft && !nextRematch.opponentLeft) {
+            window.setTimeout(() => startMatch(), 0);
+          }
+
+          return nextState;
+        });
+        break;
+      }
+      case 'results:left': {
+        setState((previous) => ({
+          ...previous,
+          rematch: {
+            ...(previous.rematch ?? initialRematchState()),
+            opponentReady: false,
+            opponentLeft: true,
+          },
+          statusMessage: 'Opponent left the results page.',
         }));
         break;
       }
       case 'game:guess': {
         if (!Number.isInteger(data.roundIndex) || typeof data.guessName !== 'string') return;
         const receivedAt = Date.now();
+        const isTimeMode = stateRef.current?.settings?.scoreMode === 'time';
         patchRound(data.roundIndex, (round) => (
           round.opponentGuesses.includes(data.guessName)
             ? round
             : {
               ...round,
               opponentGuesses: [...round.opponentGuesses, data.guessName],
-              opponentLastGuessAt: receivedAt,
+              opponentLastGuessAt: isTimeMode ? receivedAt : round.opponentLastGuessAt,
             }
         ));
         break;
@@ -330,13 +375,24 @@ export default function VsMode({ onBack }) {
       setState((previous) => ({
         ...previous,
         connectionState: 'idle',
-        statusMessage: previous.view === 'game' ? 'Connection lost during match.' : 'Connection closed.',
-        view: 'home',
-        lobbyCode: '',
-        roundStates: [],
-        currentRoundIndex: 0,
-        finalOutcome: null,
-        opponentNickname: 'Opponent',
+        statusMessage: previous.view === 'results'
+          ? 'Opponent left the results page.'
+          : previous.view === 'game'
+            ? 'Connection lost during match.'
+            : 'Connection closed.',
+        view: previous.view === 'results' ? 'results' : 'home',
+        lobbyCode: previous.view === 'results' ? previous.lobbyCode : '',
+        roundStates: previous.view === 'results' ? previous.roundStates : [],
+        currentRoundIndex: previous.view === 'results' ? previous.currentRoundIndex : 0,
+        finalOutcome: previous.view === 'results' ? previous.finalOutcome : null,
+        opponentNickname: previous.view === 'results' ? previous.opponentNickname : 'Opponent',
+        rematch: previous.view === 'results'
+          ? {
+            ...(previous.rematch ?? initialRematchState()),
+            opponentReady: false,
+            opponentLeft: true,
+          }
+          : initialRematchState(),
         settings: previous.isHost ? previous.settings : loadVsSettings(),
       }));
     });
@@ -553,6 +609,7 @@ export default function VsMode({ onBack }) {
       currentRoundIndex: 0,
       roundStates: rounds,
       finalOutcome: null,
+      rematch: initialRematchState(),
       statusMessage: 'Match started.',
     }));
 
@@ -563,12 +620,42 @@ export default function VsMode({ onBack }) {
     });
   };
 
+  const handlePlayAgain = () => {
+    setState((previous) => {
+      const nextReady = !Boolean(previous.rematch?.localReady);
+      const nextRematch = {
+        ...(previous.rematch ?? initialRematchState()),
+        localReady: nextReady,
+        localLeft: false,
+      };
+
+      window.setTimeout(() => {
+        sendMessage({
+          type: 'results:ready',
+          ready: nextReady,
+        });
+
+        if (previous.isHost && previous.view === 'results' && nextReady && nextRematch.opponentReady && !nextRematch.localLeft && !nextRematch.opponentLeft) {
+          startMatch();
+        }
+      }, 0);
+
+      return {
+        ...previous,
+        rematch: nextRematch,
+      };
+    });
+  };
+
   const handleGuess = (playerName) => {
     const player = findPlayerByNameOrAlias(playerName);
     if (!player || !activeRound || activeRound.localResult) return;
 
-    const cooldownMs = Math.max(0, Number(state.settings?.cooldownSeconds || 0) * 1000);
-    if (cooldownMs > 0 && activeRound.lastGuessAt) {
+    // Only enforce cooldown and record lastGuessAt when in time score mode
+    const isTimeMode = stateRef.current?.settings?.scoreMode === 'time';
+    const cooldownMs = isTimeMode ? Math.max(0, Number(stateRef.current.settings.cooldownSeconds || 0) * 1000) : 0;
+
+    if (cooldownMs > 0 && isTimeMode && activeRound.lastGuessAt) {
       const elapsedSinceLastGuess = Date.now() - activeRound.lastGuessAt;
       if (elapsedSinceLastGuess < cooldownMs) return;
     }
@@ -594,7 +681,7 @@ export default function VsMode({ onBack }) {
             ...entry,
             localGuesses: nextGuesses,
             localResult,
-            lastGuessAt: now,
+            lastGuessAt: previous.settings.scoreMode === 'time' ? now : entry.lastGuessAt,
           }
           : entry
       ));
@@ -622,6 +709,21 @@ export default function VsMode({ onBack }) {
   };
 
   const handleBackToMenu = () => {
+    if (state.view === 'results') {
+      sendMessage({ type: 'results:left' });
+      setState((previous) => ({
+        ...previous,
+        view: 'home',
+        statusMessage: 'You left the results page.',
+        rematch: {
+          ...(previous.rematch ?? initialRematchState()),
+          localReady: false,
+          localLeft: true,
+        },
+      }));
+      return;
+    }
+
     teardownNetwork(true);
     if (typeof onBack === 'function') onBack();
   };
@@ -641,7 +743,7 @@ export default function VsMode({ onBack }) {
       <VsResults
         state={state}
         onBackToMenu={handleBackToMenu}
-        onResetSession={resetSession}
+        onPlayAgain={handlePlayAgain}
       />
     );
   }

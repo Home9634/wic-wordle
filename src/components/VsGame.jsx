@@ -18,7 +18,7 @@ export default function VsGame({
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
   useEffect(() => {
-    const cooldownSeconds = state.settings.cooldownSeconds ?? 0;
+    const cooldownSeconds = state.settings.scoreMode === 'time' ? (state.settings.cooldownSeconds ?? 0) : 0;
     if (cooldownSeconds <= 0) {
       setCooldownRemaining(0);
       return;
@@ -48,7 +48,7 @@ export default function VsGame({
         cancelAnimationFrame(frameId);
       }
     };
-  }, [activeRound?.lastGuessAt, state.settings.cooldownSeconds]);
+  }, [activeRound?.lastGuessAt, state.settings.cooldownSeconds, state.settings.scoreMode]);
 
   const localGuessPlayers = localGuesses
     .map((name) => findPlayerByNameOrAlias(name))
@@ -110,9 +110,9 @@ export default function VsGame({
                 onGuess={onGuess} 
                 disabledPlayers={localGuesses}
                 cooldownRemaining={cooldownRemaining}
-                cooldownSeconds={state.settings.cooldownSeconds}
+                cooldownSeconds={state.settings.scoreMode === 'time' ? state.settings.cooldownSeconds : 0}
               />
-              {cooldownRemaining > 0 && (
+              {cooldownRemaining > 0 && state.settings.scoreMode === 'time' && (
                 <div className="flex items-center justify-center rounded-lg border border-orange-400/70 bg-orange-500/10 px-3 py-2 w-16 h-11 text-sm font-semibold text-orange-300">
                   {(cooldownRemaining / 1000).toFixed(1)}s
                 </div>
@@ -127,7 +127,7 @@ export default function VsGame({
               target={activeTarget}
               visibleStats={visibleStats}
               opponentLastGuessAt={activeRound?.opponentLastGuessAt}
-              cooldownSeconds={state.settings.cooldownSeconds}
+              cooldownSeconds={state.settings.scoreMode === 'time' ? state.settings.cooldownSeconds : 0}
             />
           </div>
         </div>

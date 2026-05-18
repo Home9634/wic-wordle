@@ -1,3 +1,5 @@
+import Tooltip from './Tooltip';
+
 const getSquareState = (round, side) => {
   const isLocalSide = side === 'left';
 
@@ -51,11 +53,13 @@ function RoundSquare({ round, index, side, scoreMode }) {
   return (
     <div className="flex flex-col items-center gap-1">
       <div
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 ring-1 ring-white/20 text-xs font-semibold text-white ${squareState.borderClass} ${squareState.fillClass}`}
+        className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 ring-1 ring-white/20 text-xs font-semibold text-white ${squareState.borderClass} ${squareState.fillClass}`}
         aria-label={`Round ${index + 1}`}
       >
         {faceSrc ? (
-          <img src={faceSrc} alt="" className="h-full w-full rounded-[inherit] object-cover opacity-95" />
+          <Tooltip title={round.target?.name || ''} compact>
+            <img src={faceSrc} alt="" className="block h-full w-full object-cover opacity-95" />
+          </Tooltip>
         ) : null}
       </div>
       {metricLabel ? (
