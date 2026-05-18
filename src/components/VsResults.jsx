@@ -21,14 +21,14 @@ export default function VsResults({ state, onBackToMenu, onPlayAgain }) {
   const localLabel = rematch.localLeft
     ? 'You left'
     : rematch.localReady
-      ? 'You ready'
-      : 'You not ready';
+      ? 'You are ready'
+      : 'You aren\'t ready';
 
   const opponentLabel = rematch.opponentLeft
     ? `${state.opponentNickname} left`
     : rematch.opponentReady
-      ? `${state.opponentNickname} ready`
-      : `${state.opponentNickname} not ready`;
+      ? `${state.opponentNickname} is ready`
+      : `${state.opponentNickname} isn't ready`;
 
   return (
     <div className="min-h-screen bg-[#1a1a1a] px-3 py-4 text-white sm:px-4">

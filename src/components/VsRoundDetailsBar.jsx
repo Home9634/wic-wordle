@@ -222,6 +222,8 @@ export default function VsRoundDetailsBar({
   startedAt,
   scoreMode,
   timeLimitSeconds,
+  isSurrendered,
+  onSurrenderRound,
 }) {
   return (
     <div className="grid items-center gap-3 rounded-2xl border border-white/10 bg-black/25 p-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
@@ -230,7 +232,21 @@ export default function VsRoundDetailsBar({
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white/80">{localGuesses.length}</span>
       </div>
 
-      <SmoothTimer startedAt={startedAt} scoreMode={scoreMode} timeLimitSeconds={timeLimitSeconds} />
+      <div className="flex flex-col items-center gap-2">
+        <SmoothTimer startedAt={startedAt} scoreMode={scoreMode} timeLimitSeconds={timeLimitSeconds} />
+        <button
+          type="button"
+          onClick={onSurrenderRound}
+          disabled={isSurrendered}
+          className={`rounded-xl border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.15em] transition ${
+            isSurrendered
+              ? 'cursor-not-allowed border-white/10 bg-white/5 text-white/35'
+              : 'cursor-pointer border-rose-400/55 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20'
+          }`}
+        >
+          {isSurrendered ? 'Surrendered' : 'Surrender Round'}
+        </button>
+      </div>
 
       <div className="flex items-center justify-center gap-2 lg:justify-start">
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-white/80">{opponentGuesses.length}</span>

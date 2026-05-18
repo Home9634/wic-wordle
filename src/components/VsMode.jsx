@@ -62,6 +62,8 @@ const initialRoundState = (target, roundIndex, randomizedPlayerCount = 0) => {
     opponentGuesses: randomPlayers.map(p => p.name),
     localResult: null,
     opponentResult: null,
+    localSurrendered: false,
+    opponentSurrendered: false,
     winner: null,
     lastGuessAt: null,
     opponentLastGuessAt: null,
@@ -207,6 +209,8 @@ export default function VsMode({ onBack }) {
             opponentGuesses: [],
             localResult: null,
             opponentResult: null,
+            localSurrendered: false,
+            opponentSurrendered: false,
             winner: null,
             lastGuessAt: null,
             opponentLastGuessAt: null,
@@ -346,6 +350,14 @@ export default function VsMode({ onBack }) {
         ));
         break;
       }
+      case 'game:surrender': {
+        if (!Number.isInteger(data.roundIndex)) return;
+        patchRound(data.roundIndex, (round) => ({
+          ...round,
+          opponentSurrendered: true,
+        }));
+        break;
+      }
       case 'game:complete': {
         if (!Number.isInteger(data.roundIndex)) return;
         patchRound(data.roundIndex, (round) => ({
@@ -422,9 +434,16 @@ export default function VsMode({ onBack }) {
     if (state.view !== 'game') return;
     if (!activeRound || activeRound.winner) return;
 
+    const localEnded = Boolean(activeRound.localResult || activeRound.localSurrendered);
+    const opponentEnded = Boolean(activeRound.opponentResult || activeRound.opponentSurrendered);
+
     const shouldResolve = state.settings.scoreMode === 'time'
-      ? Boolean(activeRound.localResult || activeRound.opponentResult)
-      : Boolean(activeRound.localResult && activeRound.opponentResult);
+      ? Boolean(
+        activeRound.localResult
+        || activeRound.opponentResult
+        || (activeRound.localSurrendered && activeRound.opponentSurrendered)
+      )
+      : Boolean(localEnded && opponentEnded);
 
     if (!shouldResolve) return;
 
@@ -664,7 +683,7 @@ export default function VsMode({ onBack }) {
 
   const handleGuess = (playerName) => {
     const player = findPlayerByNameOrAlias(playerName);
-    if (!player || !activeRound || activeRound.localResult) return;
+    if (!player || !activeRound || activeRound.localResult || activeRound.localSurrendered) return;
 
     // Only enforce cooldown and record lastGuessAt when in time score mode
     const isTimeMode = stateRef.current?.settings?.scoreMode === 'time';
@@ -723,6 +742,34 @@ export default function VsMode({ onBack }) {
     }
   };
 
+  const handleSurrenderRound = () => {
+    if (!activeRound || activeRound.localResult || activeRound.localSurrendered || activeRound.winner) return;
+
+    setState((previous) => {
+      const round = previous.roundStates[previous.currentRoundIndex];
+      if (!round || round.localResult || round.localSurrendered || round.winner) return previous;
+
+      const nextRounds = previous.roundStates.map((entry, index) => (
+        index === previous.currentRoundIndex
+          ? {
+            ...entry,
+            localSurrendered: true,
+          }
+          : entry
+      ));
+
+      return {
+        ...previous,
+        roundStates: nextRounds,
+      };
+    });
+
+    sendMessage({
+      type: 'game:surrender',
+      roundIndex: state.currentRoundIndex,
+    });
+  };
+
   const handleBackToMenu = () => {
     if (state.view === 'results') {
       sendMessage({ type: 'results:left' });
@@ -773,6 +820,7 @@ export default function VsMode({ onBack }) {
         visibleStats={visibleStats}
         onBackToMenu={handleBackToMenu}
         onGuess={handleGuess}
+        onSurrenderRound={handleSurrenderRound}
       />
     );
   }

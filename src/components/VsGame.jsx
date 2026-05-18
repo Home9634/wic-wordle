@@ -14,6 +14,7 @@ export default function VsGame({
   visibleStats,
   onBackToMenu,
   onGuess,
+  onSurrenderRound,
 }) {
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
@@ -101,6 +102,8 @@ export default function VsGame({
           startedAt={activeRound?.startedAt}
           scoreMode={state.settings.scoreMode}
           timeLimitSeconds={state.settings.scoreMode === 'guesses' ? state.settings.timeLimitSeconds : undefined}
+          isSurrendered={Boolean(activeRound?.localSurrendered)}
+          onSurrenderRound={onSurrenderRound}
         />
 
         <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
@@ -111,6 +114,7 @@ export default function VsGame({
                 disabledPlayers={localGuesses}
                 cooldownRemaining={cooldownRemaining}
                 cooldownSeconds={state.settings.scoreMode === 'time' ? state.settings.cooldownSeconds : 0}
+                disabled={Boolean(activeRound?.localSurrendered)}
               />
               {cooldownRemaining > 0 && state.settings.scoreMode === 'time' && (
                 <div className="flex items-center justify-center rounded-lg border border-orange-400/70 bg-orange-500/10 px-3 py-2 w-16 h-11 text-sm font-semibold text-orange-300">

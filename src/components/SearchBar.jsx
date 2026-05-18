@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { players } from '../data/players';
 import { matchesPlayerQuery } from '../utils/gameLogic';
 
-export default function SearchBar({ onGuess, disabledPlayers, cooldownRemaining, cooldownSeconds }) {
+export default function SearchBar({ onGuess, disabledPlayers, cooldownRemaining, cooldownSeconds, disabled = false }) {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -15,9 +15,10 @@ export default function SearchBar({ onGuess, disabledPlayers, cooldownRemaining,
   );
 
   const isOnCooldown = (cooldownRemaining ?? 0) > 0 && (cooldownSeconds ?? 0) > 0;
+  const isDisabled = disabled || isOnCooldown;
 
   const handleSelect = (playerName) => {
-    if (isOnCooldown) return;
+    if (isDisabled) return;
     onGuess(playerName);
     setQuery('');
     setIsOpen(false);
@@ -27,24 +28,31 @@ export default function SearchBar({ onGuess, disabledPlayers, cooldownRemaining,
     <div className="relative w-64">
       <input 
         className={`w-full p-2 border bg-gray-100 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 ${
-          isOnCooldown 
+          isDisabled 
             ? 'border-orange-400 focus:ring-orange-400 opacity-50 cursor-not-allowed' 
             : 'border-gray-500 focus:ring-gray-600'
         }`}
         value={query} 
         onChange={(e) => {
+          if (isDisabled) return;
           setQuery(e.target.value);
           setIsOpen(true);
         }}
         onKeyDown={(e) => {
           if (e.key !== 'Enter') return;
           if (visiblePlayers.length !== 1) return;
-          if (isOnCooldown) return;
+          if (isDisabled) return;
           e.preventDefault();
           handleSelect(visiblePlayers[0].name);
         }}
-        onFocus={() => setIsOpen(true)}
-        onClick={() => setIsOpen(true)}
+        onFocus={() => {
+          if (isDisabled) return;
+          setIsOpen(true);
+        }}
+        onClick={() => {
+          if (isDisabled) return;
+          setIsOpen(true);
+        }}
         onBlur={() => setIsOpen(false)}
         placeholder="Type player name..."
       />
@@ -54,12 +62,12 @@ export default function SearchBar({ onGuess, disabledPlayers, cooldownRemaining,
             <div 
               key={p.name} 
               className={`p-2 text-gray-900 ${
-                isOnCooldown 
+                isDisabled 
                   ? 'opacity-50 cursor-not-allowed' 
                   : 'cursor-pointer hover:bg-gray-200'
               }`}
               onMouseDown={(e) => {
-                if (isOnCooldown) {
+                if (isDisabled) {
                   e.preventDefault();
                   return;
                 }
