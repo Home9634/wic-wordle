@@ -3,8 +3,8 @@ const getSquareState = (round, side) => {
 
   if (round.winner === 'draw') {
     return {
-      borderClass: 'border-white/20 bg-white/5',
-      fillClass: 'bg-white/0',
+      borderClass: 'border-orange-400/70 bg-orange-500/10',
+      fillClass: 'bg-transparent',
     };
   }
 

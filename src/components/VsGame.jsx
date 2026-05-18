@@ -1,12 +1,13 @@
 import SearchBar from './SearchBar';
 import GuessTable from './GuessTable';
 import VsRoundSummary from './VsRoundSummary';
+import VsRoundDetailsBar, { VsOpponentMiniBoard } from './VsRoundDetailsBar';
 import { getMatchWinner } from '../utils/vsGameHelpers';
 import { findPlayerByNameOrAlias } from '../utils/gameLogic';
+import { useState, useEffect } from 'react';
 
 export default function VsGame({
   state,
-  tick,
   activeRound,
   activeTarget,
   localGuesses,
@@ -14,7 +15,40 @@ export default function VsGame({
   onBackToMenu,
   onGuess,
 }) {
-  const roundElapsed = activeRound?.startedAt ? tick - activeRound.startedAt : 0;
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  useEffect(() => {
+    const cooldownSeconds = state.settings.cooldownSeconds ?? 0;
+    if (cooldownSeconds <= 0) {
+      setCooldownRemaining(0);
+      return;
+    }
+
+    if (!activeRound?.lastGuessAt) {
+      setCooldownRemaining(0);
+      return;
+    }
+
+    let frameId = null;
+    const updateCooldown = () => {
+      const now = Date.now();
+      const elapsedMs = now - activeRound.lastGuessAt;
+      const cooldownMs = cooldownSeconds * 1000;
+      const remainingMs = Math.max(0, cooldownMs - elapsedMs);
+      setCooldownRemaining(remainingMs);
+
+      if (remainingMs > 0) {
+        frameId = requestAnimationFrame(updateCooldown);
+      }
+    };
+
+    frameId = requestAnimationFrame(updateCooldown);
+    return () => {
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
+      }
+    };
+  }, [activeRound?.lastGuessAt, state.settings.cooldownSeconds]);
 
   const localGuessPlayers = localGuesses
     .map((name) => findPlayerByNameOrAlias(name))
@@ -35,7 +69,7 @@ export default function VsGame({
         </div>
         <h2 className="text-center text-xl">VS Mode</h2>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 px-3 py-3 shadow-2xl shadow-black/30 sm:px-4">
+        <div className="rounded-3xl border border-white/10 bg-zinc-800/80 px-3 py-3 shadow-2xl shadow-black/30 sm:px-4">
           <div className="grid items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_3px_minmax(0,1fr)] lg:gap-0">
             <div className="lg:pr-8">
               <VsRoundSummary
@@ -61,34 +95,40 @@ export default function VsGame({
           </div>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,2.1fr)_minmax(280px,0.9fr)]">
+        <VsRoundDetailsBar
+          localGuesses={localGuesses}
+          opponentGuesses={activeRound?.opponentGuesses ?? []}
+          startedAt={activeRound?.startedAt}
+          scoreMode={state.settings.scoreMode}
+          timeLimitSeconds={state.settings.scoreMode === 'guesses' ? state.settings.timeLimitSeconds : undefined}
+        />
+
+        <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <div className="min-w-0 space-y-3 justify-center">
-            <div className="flex justify-center">
-              <SearchBar onGuess={onGuess} disabledPlayers={localGuesses} />
+            <div className="flex justify-center items-center gap-3">
+              <SearchBar 
+                onGuess={onGuess} 
+                disabledPlayers={localGuesses}
+                cooldownRemaining={cooldownRemaining}
+                cooldownSeconds={state.settings.cooldownSeconds}
+              />
+              {cooldownRemaining > 0 && (
+                <div className="flex items-center justify-center rounded-lg border border-orange-400/70 bg-orange-500/10 px-3 py-2 w-16 h-11 text-sm font-semibold text-orange-300">
+                  {(cooldownRemaining / 1000).toFixed(1)}s
+                </div>
+              )}
             </div>
             <GuessTable guesses={localGuessPlayers} target={activeTarget} visibleStats={visibleStats} />
           </div>
 
-          <div className="min-w-0 space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-black/25 p-4 text-sm text-white/75">
-              <div className="mb-2 text-xs uppercase tracking-[0.25em] text-white/45">Round details</div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/60">Round</span>
-                  <span className="font-semibold text-white">{state.currentRoundIndex + 1} / {state.roundStates.length || 0}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/60">Current pace</span>
-                  <span className="font-semibold text-white">
-                    {state.settings.scoreMode === 'time' ? `${(roundElapsed / 1000).toFixed(1)}s` : `${localGuesses.length} guesses`}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-white/60">Win con</span>
-                  <span className="font-semibold text-white">Rounds won</span>
-                </div>
-              </div>
-            </div>
+          <div className="min-w-0 xl:sticky xl:top-4">
+            <VsOpponentMiniBoard
+              opponentGuesses={activeRound?.opponentGuesses ?? []}
+              target={activeTarget}
+              visibleStats={visibleStats}
+              opponentLastGuessAt={activeRound?.opponentLastGuessAt}
+              cooldownSeconds={state.settings.cooldownSeconds}
+            />
           </div>
         </div>
       </div>

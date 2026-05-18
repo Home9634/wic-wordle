@@ -216,7 +216,7 @@ export default function VsHome({
                           <span className="block text-xs uppercase tracking-[0.2em] text-white/50">Rounds</span>
                           <Tooltip
                             title="Rounds"
-                            description="Number of rounds in this match (1–9). The host can change this before starting."
+                            description="Number of rounds in this match (1–9)."
                           />
                         </div>
                         <input

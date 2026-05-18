@@ -61,6 +61,8 @@ const initialRoundState = (target, roundIndex) => ({
   localResult: null,
   opponentResult: null,
   winner: null,
+  lastGuessAt: null,
+  opponentLastGuessAt: null,
 });
 
 const defaultState = () => ({
@@ -80,7 +82,6 @@ const defaultState = () => ({
 
 export default function VsMode({ onBack }) {
   const [state, setState] = useState(() => (DEBUG_MODE ? debugState : defaultState()));
-  const [tick, setTick] = useState(() => Date.now());
   const peerRef = useRef(null);
   const connectionRef = useRef(null);
   const stateRef = useRef(state);
@@ -99,13 +100,9 @@ export default function VsMode({ onBack }) {
   }, [state.nickname]);
 
   useEffect(() => {
+    if (!state.isHost && state.connectionState === 'connected') return;
     saveVsSettings(state.settings);
-  }, [state.settings]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setTick(Date.now()), 250);
-    return () => window.clearInterval(timer);
-  }, []);
+  }, [state.connectionState, state.isHost, state.settings]);
 
   const sendMessage = useCallback((payload) => {
     const connection = connectionRef.current;
@@ -150,6 +147,67 @@ export default function VsMode({ onBack }) {
         index === roundIndex ? updater(round) : round
       )),
     }));
+  }, []);
+
+  const resolveCurrentRound = useCallback(() => {
+    setState((previous) => {
+      if (previous.view !== 'game') return previous;
+
+      const current = previous.roundStates[previous.currentRoundIndex];
+      if (!current || current.winner) return previous;
+
+      const localMetric = current.localResult ? getRoundMetric(current.localResult, previous.settings.scoreMode) : Number.POSITIVE_INFINITY;
+      const opponentMetric = current.opponentResult ? getRoundMetric(current.opponentResult, previous.settings.scoreMode) : Number.POSITIVE_INFINITY;
+
+      let winner = 'draw';
+      if (previous.settings.scoreMode === 'time') {
+        if (localMetric !== Number.POSITIVE_INFINITY && opponentMetric !== Number.POSITIVE_INFINITY) {
+          winner = localMetric === opponentMetric ? 'draw' : localMetric < opponentMetric ? 'local' : 'opponent';
+        } else if (localMetric !== Number.POSITIVE_INFINITY) {
+          winner = 'local';
+        } else if (opponentMetric !== Number.POSITIVE_INFINITY) {
+          winner = 'opponent';
+        }
+      } else {
+        winner = localMetric === opponentMetric ? 'draw' : localMetric < opponentMetric ? 'local' : 'opponent';
+      }
+
+      const resolvedRounds = previous.roundStates.map((round, index) => (
+        index === previous.currentRoundIndex ? { ...round, winner } : round
+      ));
+
+      const nextRoundIndex = previous.currentRoundIndex + 1;
+      if (nextRoundIndex >= resolvedRounds.length) {
+        return {
+          ...previous,
+          roundStates: resolvedRounds,
+          finalOutcome: getMatchWinner(resolvedRounds, previous.settings.scoreMode),
+          view: 'results',
+        };
+      }
+
+      const activatedRounds = resolvedRounds.map((round, index) => (
+        index === nextRoundIndex
+          ? {
+            ...round,
+            startedAt: Date.now(),
+            localGuesses: [],
+            opponentGuesses: [],
+            localResult: null,
+            opponentResult: null,
+            winner: null,
+            lastGuessAt: null,
+            opponentLastGuessAt: null,
+          }
+          : round
+      ));
+
+      return {
+        ...previous,
+        roundStates: activatedRounds,
+        currentRoundIndex: nextRoundIndex,
+      };
+    });
   }, []);
 
   const handleIncomingData = useCallback((data) => {
@@ -219,10 +277,15 @@ export default function VsMode({ onBack }) {
       }
       case 'game:guess': {
         if (!Number.isInteger(data.roundIndex) || typeof data.guessName !== 'string') return;
+        const receivedAt = Date.now();
         patchRound(data.roundIndex, (round) => (
           round.opponentGuesses.includes(data.guessName)
             ? round
-            : { ...round, opponentGuesses: [...round.opponentGuesses, data.guessName] }
+            : {
+              ...round,
+              opponentGuesses: [...round.opponentGuesses, data.guessName],
+              opponentLastGuessAt: receivedAt,
+            }
         ));
         break;
       }
@@ -248,6 +311,7 @@ export default function VsMode({ onBack }) {
           roundStates: [],
           currentRoundIndex: 0,
           finalOutcome: null,
+          settings: previous.isHost ? previous.settings : loadVsSettings(),
           statusMessage: 'Opponent disconnected.',
         }));
         break;
@@ -273,6 +337,7 @@ export default function VsMode({ onBack }) {
         currentRoundIndex: 0,
         finalOutcome: null,
         opponentNickname: 'Opponent',
+        settings: previous.isHost ? previous.settings : loadVsSettings(),
       }));
     });
 
@@ -298,56 +363,28 @@ export default function VsMode({ onBack }) {
     const resolveDelay = state.settings.scoreMode === 'time' ? 300 : 900;
 
     const timer = window.setTimeout(() => {
-      setState((previous) => {
-        const current = previous.roundStates[previous.currentRoundIndex];
-        if (!current || current.winner) return previous;
-
-        const localMetric = current.localResult ? getRoundMetric(current.localResult, previous.settings.scoreMode) : Number.POSITIVE_INFINITY;
-        const opponentMetric = current.opponentResult ? getRoundMetric(current.opponentResult, previous.settings.scoreMode) : Number.POSITIVE_INFINITY;
-
-        let winner = 'draw';
-        if (previous.settings.scoreMode === 'time') {
-          if (localMetric !== Number.POSITIVE_INFINITY && opponentMetric !== Number.POSITIVE_INFINITY) {
-            winner = localMetric === opponentMetric ? 'draw' : localMetric < opponentMetric ? 'local' : 'opponent';
-          } else if (localMetric !== Number.POSITIVE_INFINITY) {
-            winner = 'local';
-          } else if (opponentMetric !== Number.POSITIVE_INFINITY) {
-            winner = 'opponent';
-          }
-        } else {
-          winner = localMetric === opponentMetric ? 'draw' : localMetric < opponentMetric ? 'local' : 'opponent';
-        }
-
-        const resolvedRounds = previous.roundStates.map((round, index) => (
-          index === previous.currentRoundIndex ? { ...round, winner } : round
-        ));
-
-        const nextRoundIndex = previous.currentRoundIndex + 1;
-        if (nextRoundIndex >= resolvedRounds.length) {
-          return {
-            ...previous,
-            roundStates: resolvedRounds,
-            finalOutcome: getMatchWinner(resolvedRounds, previous.settings.scoreMode),
-            view: 'results',
-          };
-        }
-
-        const activatedRounds = resolvedRounds.map((round, index) => (
-          index === nextRoundIndex
-            ? { ...round, startedAt: Date.now(), localGuesses: [], opponentGuesses: [], localResult: null, opponentResult: null, winner: null }
-            : round
-        ));
-
-        return {
-          ...previous,
-          roundStates: activatedRounds,
-          currentRoundIndex: nextRoundIndex,
-        };
-      });
+      resolveCurrentRound();
     }, resolveDelay);
 
     return () => window.clearTimeout(timer);
-  }, [activeRound, state.settings.scoreMode, state.view]);
+  }, [activeRound, resolveCurrentRound, state.settings.scoreMode, state.settings.timeLimitSeconds, state.view]);
+
+  useEffect(() => {
+    if (state.view !== 'game') return;
+    if (state.settings.scoreMode !== 'guesses') return;
+    if (!activeRound || activeRound.winner) return;
+    if (!activeRound.startedAt) return;
+
+    const timeLimitMs = (state.settings.timeLimitSeconds || 0) * 1000;
+    const elapsedMs = Date.now() - activeRound.startedAt;
+    const remainingMs = Math.max(0, timeLimitMs - elapsedMs);
+
+    const timer = window.setTimeout(() => {
+      resolveCurrentRound();
+    }, remainingMs);
+
+    return () => window.clearTimeout(timer);
+  }, [activeRound, resolveCurrentRound, state.settings.scoreMode, state.settings.timeLimitSeconds, state.view]);
 
   const updateSettings = (patch) => {
     setState((previous) => {
@@ -530,6 +567,12 @@ export default function VsMode({ onBack }) {
     const player = findPlayerByNameOrAlias(playerName);
     if (!player || !activeRound || activeRound.localResult) return;
 
+    const cooldownMs = Math.max(0, Number(state.settings?.cooldownSeconds || 0) * 1000);
+    if (cooldownMs > 0 && activeRound.lastGuessAt) {
+      const elapsedSinceLastGuess = Date.now() - activeRound.lastGuessAt;
+      if (elapsedSinceLastGuess < cooldownMs) return;
+    }
+
     const nextGuesses = activeRound.localGuesses.includes(player.name)
       ? activeRound.localGuesses
       : [...activeRound.localGuesses, player.name];
@@ -551,6 +594,7 @@ export default function VsMode({ onBack }) {
             ...entry,
             localGuesses: nextGuesses,
             localResult,
+            lastGuessAt: now,
           }
           : entry
       ));
@@ -587,7 +631,7 @@ export default function VsMode({ onBack }) {
     setState((previous) => ({
       ...defaultState(),
       nickname: previous.nickname,
-      settings: previous.settings,
+      settings: previous.isHost ? previous.settings : loadVsSettings(),
     }));
   };
 
@@ -606,7 +650,6 @@ export default function VsMode({ onBack }) {
     return (
       <VsGame
         state={state}
-        tick={tick}
         activeRound={activeRound}
         activeTarget={activeTarget}
         localGuesses={localGuesses}

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { players } from '../data/players';
 import { matchesPlayerQuery } from '../utils/gameLogic';
 
-export default function SearchBar({ onGuess, disabledPlayers }) {
+export default function SearchBar({ onGuess, disabledPlayers, cooldownRemaining, cooldownSeconds }) {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
@@ -14,7 +14,10 @@ export default function SearchBar({ onGuess, disabledPlayers }) {
     matchesPlayerQuery(player, query)
   );
 
+  const isOnCooldown = (cooldownRemaining ?? 0) > 0 && (cooldownSeconds ?? 0) > 0;
+
   const handleSelect = (playerName) => {
+    if (isOnCooldown) return;
     onGuess(playerName);
     setQuery('');
     setIsOpen(false);
@@ -23,7 +26,11 @@ export default function SearchBar({ onGuess, disabledPlayers }) {
   return (
     <div className="relative w-64">
       <input 
-        className="w-full p-2 border border-gray-500 bg-gray-100 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-600"
+        className={`w-full p-2 border bg-gray-100 text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 ${
+          isOnCooldown 
+            ? 'border-orange-400 focus:ring-orange-400 opacity-50 cursor-not-allowed' 
+            : 'border-gray-500 focus:ring-gray-600'
+        }`}
         value={query} 
         onChange={(e) => {
           setQuery(e.target.value);
@@ -32,6 +39,7 @@ export default function SearchBar({ onGuess, disabledPlayers }) {
         onKeyDown={(e) => {
           if (e.key !== 'Enter') return;
           if (visiblePlayers.length !== 1) return;
+          if (isOnCooldown) return;
           e.preventDefault();
           handleSelect(visiblePlayers[0].name);
         }}
@@ -45,8 +53,16 @@ export default function SearchBar({ onGuess, disabledPlayers }) {
           {visiblePlayers.map(p => (
             <div 
               key={p.name} 
-              className="p-2 cursor-pointer hover:bg-gray-200 text-gray-900"
+              className={`p-2 text-gray-900 ${
+                isOnCooldown 
+                  ? 'opacity-50 cursor-not-allowed' 
+                  : 'cursor-pointer hover:bg-gray-200'
+              }`}
               onMouseDown={(e) => {
+                if (isOnCooldown) {
+                  e.preventDefault();
+                  return;
+                }
                 e.preventDefault();
                 handleSelect(p.name);
               }}
