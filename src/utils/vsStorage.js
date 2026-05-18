@@ -16,7 +16,7 @@ export const normalizeVsSettings = (settings) => {
     scoreMode: input.scoreMode === 'guesses' ? 'guesses' : 'time',
     rounds: clampInt(input.rounds, 1, 9, 3),
     cooldownSeconds: clampInt(input.cooldownSeconds, 0, 15, 0),
-    timeLimitSeconds: clampInt(input.timeLimitSeconds, 15, 600, 90),
+    timeLimitSeconds: clampInt(input.timeLimitSeconds, 15, 600, 120),
     visibleStats: Array.isArray(input.visibleStats) && input.visibleStats.length > 0
       ? input.visibleStats.filter((key) => DEFAULT_VISIBLE_STATS.includes(key))
       : DEFAULT_VISIBLE_STATS,
