@@ -261,7 +261,7 @@ export default function VsHome({
                   </div>
 
                   <StatSelector
-                    value={visibleStats}
+                    value={state.settings?.visibleStats}
                     onChange={(nextStats) => onUpdateSettings({ visibleStats: nextStats })}
                     disabled={!state.isHost}
                   />
