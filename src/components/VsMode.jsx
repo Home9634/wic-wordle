@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Peer from 'peerjs';
 import VsHome from './VsHome';
 import VsGame from './VsGame';
 import VsResults from './VsResults';
-import { DEFAULT_VISIBLE_STATS, PEER_CONFIG } from './vsModeConstants';
+import { DEFAULT_VISIBLE_STATS, WS_BACKEND_URL } from './vsModeConstants';
 import { loadVsNickname, loadVsSettings, normalizeVsSettings, saveVsNickname, saveVsSettings } from '../utils/vsStorage';
 import { getMatchWinner, getRoundMetric } from '../utils/vsGameHelpers';
 import { players } from '../data/players';
 import { findPlayerByNameOrAlias, getRandomPlayers } from '../utils/gameLogic';
+import useWsLobby from '../hooks/useWsLobby';
 
 const DEBUG_MODE = false;
 
@@ -50,10 +50,9 @@ const debugState = {
 };
 
 const pickRandomTarget = () => players[Math.floor(Math.random() * players.length)];
-const generateLobbyCode = () => String(Math.floor(Math.random() * 900) + 100);
 
 const initialRoundState = (target, roundIndex, randomizedPlayerCount = 0) => {
-  const randomPlayers = randomizedPlayerCount > 0 ? getRandomPlayers(randomizedPlayerCount) : [];
+  const randomPlayers = randomizedPlayerCount > 0 ? getRandomPlayers(randomizedPlayerCount, target) : [];
   return {
     roundIndex,
     target,
@@ -95,9 +94,11 @@ const defaultState = () => ({
 
 export default function VsMode({ onBack }) {
   const [state, setState] = useState(() => (DEBUG_MODE ? debugState : defaultState()));
-  const peerRef = useRef(null);
-  const connectionRef = useRef(null);
   const stateRef = useRef(state);
+  // websocket refs and functions are provided by useWsLobby below
+  let connectionRef = null;
+  let socketRef = null;
+  
 
   const activeRound = state.roundStates[state.currentRoundIndex] ?? null;
   const localGuesses = activeRound?.localGuesses ?? [];
@@ -117,41 +118,14 @@ export default function VsMode({ onBack }) {
     saveVsSettings(state.settings);
   }, [state.connectionState, state.isHost, state.settings]);
 
-  const sendMessage = useCallback((payload) => {
-    const connection = connectionRef.current;
-    if (!connection || !connection.open) return;
-    connection.send(payload);
-  }, []);
+  // stable refs used to forward hook implementations once the hook is created
+  const sendRef = useRef(() => {});
+  const teardownRef = useRef(() => {});
 
-  const teardownNetwork = useCallback((notifyPeer = false) => {
-    if (notifyPeer && connectionRef.current?.open) {
-      try {
-        connectionRef.current.send({ type: 'lobby:close' });
-      } catch {
-        // ignore
-      }
-    }
+  const sendMessage = useCallback((type, data = {}) => sendRef.current(type, data), []);
+  const teardownNetwork = useCallback((notifyPeer = false, reason = 'manual') => teardownRef.current(notifyPeer, reason), []);
 
-    if (connectionRef.current) {
-      try {
-        connectionRef.current.close();
-      } catch {
-        // ignore
-      }
-      connectionRef.current = null;
-    }
-
-    if (peerRef.current) {
-      try {
-        peerRef.current.destroy();
-      } catch {
-        // ignore
-      }
-      peerRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => () => teardownNetwork(false), [teardownNetwork]);
+  // websocket functions are provided by the `useWsLobby` hook below
 
   const patchRound = useCallback((roundIndex, updater) => {
     setState((previous) => ({
@@ -205,8 +179,9 @@ export default function VsMode({ onBack }) {
           ? {
             ...round,
             startedAt: Date.now(),
-            localGuesses: [],
-            opponentGuesses: [],
+            // Preserve any preselected randomized guesses that were set at match start
+            localGuesses: Array.isArray(round.localGuesses) && round.localGuesses.length > 0 ? round.localGuesses : [],
+            opponentGuesses: Array.isArray(round.opponentGuesses) && round.opponentGuesses.length > 0 ? round.opponentGuesses : [],
             localResult: null,
             opponentResult: null,
             localSurrendered: false,
@@ -226,63 +201,143 @@ export default function VsMode({ onBack }) {
     });
   }, []);
 
-  const handleIncomingData = useCallback((data) => {
-    if (!data || typeof data !== 'object') return;
+  const startMatch = useCallback(() => {
+    const currentState = stateRef.current;
+    if (!currentState.isHost) return;
 
-    switch (data.type) {
-      case 'lobby:hello': {
+    const requestedRounds = Number.isInteger(currentState.settings.rounds) ? currentState.settings.rounds : 3;
+    const availablePlayers = players.length;
+
+    let targets = [];
+    if (availablePlayers >= requestedRounds) {
+      targets = getRandomPlayers(requestedRounds);
+    } else {
+      targets = Array.from({ length: requestedRounds }, () => ({ target: pickRandomTarget() }));
+      targets = targets.map((t) => t.target || t);
+    }
+
+    const rounds = targets.map((t, roundIndex) => initialRoundState(t, roundIndex, currentState.settings.randomizedPlayerCount));
+
+    setState((previous) => ({
+      ...previous,
+      view: 'game',
+      currentRoundIndex: 0,
+      roundStates: rounds,
+      finalOutcome: null,
+      rematch: initialRematchState(),
+      statusMessage: 'Match started.',
+    }));
+
+    sendMessage('game:start', {
+      settings: currentState.settings,
+      lobbyCode: currentState.lobbyCode,
+      rounds: rounds.map((round, roundIndex) => ({
+        roundIndex,
+        target: round.target,
+        initialGuesses: round.localGuesses,
+      })),
+    });
+  }, [sendMessage]);
+
+  const handleIncomingData = useCallback((message) => {
+    if (!message || typeof message !== 'object') return;
+
+    const data = message.data ?? {};
+    const ownRole = stateRef.current.isHost ? 'host' : 'guest';
+    console.log('Received message:', message.type, data);
+
+    switch (message.type) {
+      case 'lobby:created': {
         setState((previous) => ({
           ...previous,
-          connectionState: 'connected',
-          opponentNickname: data.nickname || previous.opponentNickname,
-          statusMessage: 'Opponent connected.',
+          isHost: true,
           view: 'lobby',
+          lobbyCode: data.lobbyCode || previous.lobbyCode,
+          connectionState: 'waiting',
+          opponentNickname: 'Waiting...',
+          statusMessage: data.message || (data.lobbyCode ? `Lobby ready. Share code ${data.lobbyCode}` : 'Lobby ready.'),
         }));
 
         const snapshot = stateRef.current;
-        sendMessage({
-          type: 'lobby:sync',
+        sendMessage('lobby:sync', {
           nickname: snapshot.nickname,
           settings: snapshot.settings,
-          lobbyCode: snapshot.lobbyCode,
+          lobbyCode: data.lobbyCode || snapshot.lobbyCode,
         });
+        break;
+      } 
+      case 'lobby:joined': {
+        setState((previous) => ({
+          ...previous,
+          view: 'lobby',
+          connectionState: 'connected',
+          lobbyCode: data.lobbyCode || previous.lobbyCode,
+          opponentNickname: data.hostNickname || data.opponentNickname || previous.opponentNickname,
+          statusMessage: data.message || 'Connected.',
+          settings: data.settings ? { ...previous.settings, ...data.settings } : previous.settings,
+        }));
+        break;
+      }
+      case 'opponent:joined': {
+        setState((previous) => ({
+          ...previous,
+          connectionState: 'connected',
+          opponentNickname: data.opponentNickname || previous.opponentNickname,
+          statusMessage: 'Opponent connected.',
+          view: 'lobby',
+        }));
         break;
       }
       case 'lobby:sync': {
         setState((previous) => ({
           ...previous,
           connectionState: 'connected',
-          opponentNickname: data.nickname || previous.opponentNickname,
+          opponentNickname: data.nickname || data.hostNickname || data.opponentNickname || previous.opponentNickname,
           lobbyCode: data.lobbyCode || previous.lobbyCode,
-          settings: previous.isHost ? previous.settings : normalizeVsSettings(data.settings ?? previous.settings),
+          settings: data.settings ? { ...previous.settings, ...data.settings } : previous.settings,
           statusMessage: 'Connected.',
           view: 'lobby',
         }));
         break;
       }
       case 'lobby:update': {
-        setState((previous) => (
-          previous.isHost
-            ? previous
-            : {
-              ...previous,
-              settings: normalizeVsSettings(data.settings ?? previous.settings),
-            }
-        ));
+        setState((previous) => {
+          const nextState = { ...previous };
+
+          if (typeof data.nickname === 'string' && (!data.submittedBy || data.submittedBy !== ownRole)) {
+            nextState.opponentNickname = data.nickname || nextState.opponentNickname;
+          }
+
+          if (!previous.isHost) {
+            nextState.settings = normalizeVsSettings(data.settings ?? previous.settings);
+          }
+
+          return nextState;
+        });
+        break;
+      }
+      case 'nickname:update': {
+        if (typeof data.nickname !== 'string') return;
+        if (data.submittedBy && data.submittedBy === ownRole) return;
+
+        setState((previous) => ({
+          ...previous,
+          opponentNickname: data.nickname || previous.opponentNickname,
+          statusMessage: previous.view === 'lobby' ? 'Opponent updated their nickname.' : previous.statusMessage,
+        }));
         break;
       }
       case 'game:start': {
         const incomingRounds = Array.isArray(data.rounds) ? data.rounds : [];
+        const nextSettings = normalizeVsSettings(data.settings ?? stateRef.current.settings);
         const nextRounds = incomingRounds.map((roundData, roundIndex) => {
-          // Support both old format (just target) and new format (object with target and initialGuesses)
           const roundObj = typeof roundData === 'string' || (roundData && roundData.name) ? { target: roundData } : roundData;
-          const target = typeof roundObj.target === 'string'
+          const target = typeof roundObj?.target === 'string'
             ? findPlayerByNameOrAlias(roundObj.target)
-            : findPlayerByNameOrAlias(roundObj.target?.name || '') || roundObj.target;
-          
+            : findPlayerByNameOrAlias(roundObj?.target?.name || '') || roundObj?.target;
+
           const round = initialRoundState(target || pickRandomTarget(), roundIndex, 0);
-          // Apply initial guesses from host if they exist
-          if (Array.isArray(roundObj.initialGuesses)) {
+          if (Array.isArray(roundObj?.initialGuesses)) {
             round.localGuesses = roundObj.initialGuesses;
             round.opponentGuesses = roundObj.initialGuesses;
           }
@@ -295,14 +350,17 @@ export default function VsMode({ onBack }) {
           currentRoundIndex: 0,
           roundStates: nextRounds,
           finalOutcome: null,
-          settings: previous.isHost ? previous.settings : normalizeVsSettings(data.settings ?? previous.settings),
+          settings: nextSettings,
           statusMessage: 'Match started.',
           rematch: initialRematchState(),
         }));
         break;
       }
-      case 'results:ready': {
+      case 'results:ready':
+      case 'rematch:ready': {
         if (typeof data.ready !== 'boolean') return;
+        if (data.submittedBy && data.submittedBy === ownRole) return;
+
         setState((previous) => {
           const nextRematch = {
             ...(previous.rematch ?? initialRematchState()),
@@ -323,21 +381,41 @@ export default function VsMode({ onBack }) {
         });
         break;
       }
-      case 'results:left': {
-        setState((previous) => ({
-          ...previous,
-          rematch: {
-            ...(previous.rematch ?? initialRematchState()),
-            opponentReady: false,
-            opponentLeft: true,
-          },
-          statusMessage: 'Opponent left the results page.',
-        }));
+      case 'results:left':
+      case 'match:left':
+      case 'match:abandoned':
+      case 'lobby:close': {
+        setState((previous) => {
+          const inResults = previous.view === 'results';
+          return {
+            ...previous,
+            connectionState: 'idle',
+            statusMessage: message.type === 'match:abandoned'
+              ? 'Opponent disconnected.'
+              : 'Opponent left.',
+            view: inResults ? 'results' : 'home',
+            lobbyCode: inResults ? previous.lobbyCode : '',
+            roundStates: inResults ? previous.roundStates : [],
+            currentRoundIndex: inResults ? previous.currentRoundIndex : 0,
+            finalOutcome: inResults ? previous.finalOutcome : null,
+            opponentNickname: inResults ? previous.opponentNickname : 'Opponent',
+            rematch: inResults
+              ? {
+                ...(previous.rematch ?? initialRematchState()),
+                opponentReady: false,
+                opponentLeft: true,
+              }
+              : initialRematchState(),
+            settings: previous.isHost ? previous.settings : loadVsSettings(),
+          };
+        });
         break;
       }
       case 'game:guess': {
         if (!Number.isInteger(data.roundIndex) || typeof data.guessName !== 'string') return;
-        const receivedAt = Date.now();
+        if (data.submittedBy && data.submittedBy === ownRole) return;
+
+        const receivedAt = Number(data.submittedAt) || Date.now();
         const isTimeMode = stateRef.current?.settings?.scoreMode === 'time';
         patchRound(data.roundIndex, (round) => (
           round.opponentGuesses.includes(data.guessName)
@@ -352,6 +430,8 @@ export default function VsMode({ onBack }) {
       }
       case 'game:surrender': {
         if (!Number.isInteger(data.roundIndex)) return;
+        if (data.submittedBy && data.submittedBy === ownRole) return;
+
         patchRound(data.roundIndex, (round) => ({
           ...round,
           opponentSurrendered: true,
@@ -360,75 +440,81 @@ export default function VsMode({ onBack }) {
       }
       case 'game:complete': {
         if (!Number.isInteger(data.roundIndex)) return;
+        if (data.submittedBy && data.submittedBy === ownRole) return;
+
         patchRound(data.roundIndex, (round) => ({
           ...round,
           opponentResult: {
-            guessCount: Number(data.guessCount) || 0,
-            timeMs: Number(data.timeMs) || 0,
+            guessCount: Number(data.result?.guessCount ?? data.guessCount) || 0,
+            timeMs: Number(data.result?.timeMs ?? data.timeMs) || 0,
           },
         }));
         break;
       }
-      case 'lobby:close': {
-        teardownNetwork(false);
+      case 'error': {
+        teardownNetwork(false, 'error');
         setState((previous) => ({
           ...previous,
-          view: 'home',
           connectionState: 'idle',
-          lobbyCode: '',
-          opponentNickname: 'Opponent',
-          roundStates: [],
-          currentRoundIndex: 0,
-          finalOutcome: null,
-          settings: previous.isHost ? previous.settings : loadVsSettings(),
-          statusMessage: 'Opponent disconnected.',
+          view: previous.view === 'join' ? 'join' : 'home',
+          statusMessage: data.message || 'Connection error.',
+          lobbyCode: previous.view === 'join' ? previous.lobbyCode : '',
         }));
         break;
       }
       default:
         break;
     }
-  }, [patchRound, sendMessage, teardownNetwork]);
+  }, [patchRound, sendMessage, startMatch, teardownNetwork]);
 
-  const establishConnection = useCallback((connection) => {
-    connectionRef.current = connection;
+  // --- wire websocket hook after handlers are defined ---
+  const onSocketClose = useCallback(() => {
+    setState((previous) => ({
+      ...previous,
+      connectionState: 'idle',
+      statusMessage: previous.view === 'results'
+        ? 'Opponent left the results page.'
+        : previous.view === 'game'
+          ? 'Connection lost during match.'
+          : 'Connection closed.',
+      view: previous.view === 'results' ? 'results' : 'home',
+      lobbyCode: previous.view === 'results' ? previous.lobbyCode : '',
+      roundStates: previous.view === 'results' ? previous.roundStates : [],
+      currentRoundIndex: previous.view === 'results' ? previous.currentRoundIndex : 0,
+      finalOutcome: previous.view === 'results' ? previous.finalOutcome : null,
+      opponentNickname: previous.view === 'results' ? previous.opponentNickname : 'Opponent',
+      rematch: previous.view === 'results'
+        ? {
+          ...(previous.rematch ?? initialRematchState()),
+          opponentReady: false,
+          opponentLeft: true,
+        }
+        : initialRematchState(),
+      settings: previous.isHost ? previous.settings : loadVsSettings(),
+    }));
+  }, []);
 
-    connection.on('data', handleIncomingData);
-    connection.on('close', () => {
-      connectionRef.current = null;
-      setState((previous) => ({
-        ...previous,
-        connectionState: 'idle',
-        statusMessage: previous.view === 'results'
-          ? 'Opponent left the results page.'
-          : previous.view === 'game'
-            ? 'Connection lost during match.'
-            : 'Connection closed.',
-        view: previous.view === 'results' ? 'results' : 'home',
-        lobbyCode: previous.view === 'results' ? previous.lobbyCode : '',
-        roundStates: previous.view === 'results' ? previous.roundStates : [],
-        currentRoundIndex: previous.view === 'results' ? previous.currentRoundIndex : 0,
-        finalOutcome: previous.view === 'results' ? previous.finalOutcome : null,
-        opponentNickname: previous.view === 'results' ? previous.opponentNickname : 'Opponent',
-        rematch: previous.view === 'results'
-          ? {
-            ...(previous.rematch ?? initialRematchState()),
-            opponentReady: false,
-            opponentLeft: true,
-          }
-          : initialRematchState(),
-        settings: previous.isHost ? previous.settings : loadVsSettings(),
-      }));
-    });
+  const onSocketError = useCallback(() => {
+    setState((previous) => ({
+      ...previous,
+      connectionState: 'idle',
+      statusMessage: 'Connection error.',
+    }));
+  }, []);
 
-    connection.on('error', () => {
-      setState((previous) => ({
-        ...previous,
-        connectionState: 'idle',
-        statusMessage: 'Connection error.',
-      }));
-    });
-  }, [handleIncomingData]);
+  const ws = useWsLobby({ onMessage: handleIncomingData, onClose: onSocketClose, onError: onSocketError });
+  const connectionRefLocal = ws.connectionRef;
+  const socketRefLocal = ws.socketRef;
+  const connectBackend = ws.connectBackend;
+
+  useEffect(() => {
+    sendRef.current = ws.sendMessage;
+    teardownRef.current = ws.teardownNetwork;
+  }, [ws]);
+
+  // expose connection/socket refs with the expected .current shape
+  connectionRef = connectionRefLocal;
+  socketRef = socketRefLocal;
 
   useEffect(() => {
     if (state.view !== 'game') return;
@@ -478,8 +564,8 @@ export default function VsMode({ onBack }) {
       const nextSettings = normalizeVsSettings({ ...previous.settings, ...patch });
       if (previous.view === 'lobby' && previous.isHost) {
         window.setTimeout(() => {
-          sendMessage({
-            type: 'lobby:update',
+          sendMessage('lobby:update', {
+            lobbyCode: previous.lobbyCode,
             settings: nextSettings,
           });
         }, 0);
@@ -492,71 +578,37 @@ export default function VsMode({ onBack }) {
     });
   };
 
-  const createHostLobby = () => {
-    teardownNetwork(false);
+  const handleNicknameChange = (event) => {
+    const nextNickname = event.target.value;
 
-    const tryCreate = (attempt = 0) => {
-      const code = generateLobbyCode();
-      const peer = new Peer(code, PEER_CONFIG);
-      peerRef.current = peer;
+    setState((previous) => ({
+      ...previous,
+      nickname: nextNickname,
+    }));
+
+    if (connectionRef.current?.readyState === WebSocket.OPEN && stateRef.current.connectionState !== 'idle') {
+      sendMessage('nickname:update', {
+        nickname: nextNickname,
+        lobbyCode: stateRef.current.lobbyCode,
+      });
+    }
+  };
+
+  const createHostLobby = () => {
+    connectBackend(() => {
+      sendMessage('lobby:create', {
+        nickname: stateRef.current.nickname,
+      });
 
       setState((previous) => ({
         ...previous,
         isHost: true,
         view: 'lobby',
-        lobbyCode: code,
         connectionState: 'connecting',
         statusMessage: 'Creating lobby...',
         opponentNickname: 'Waiting...',
       }));
-
-      peer.on('open', (peerId) => {
-        setState((previous) => ({
-          ...previous,
-          connectionState: 'waiting',
-          lobbyCode: peerId,
-          statusMessage: `Lobby ready. Share code ${peerId}`,
-        }));
-      });
-
-      peer.on('connection', (connection) => {
-        if (connectionRef.current) {
-          connection.close();
-          return;
-        }
-
-        establishConnection(connection);
-        connection.on('open', () => {
-          setState((previous) => ({
-            ...previous,
-            connectionState: 'connected',
-            statusMessage: 'Opponent connected.',
-          }));
-        });
-      });
-
-      peer.on('error', (error) => {
-        if (error?.type === 'unavailable-id' && attempt < 8) {
-          try {
-            peer.destroy();
-          } catch {
-            // ignore
-          }
-          tryCreate(attempt + 1);
-          return;
-        }
-
-        setState((previous) => ({
-          ...previous,
-          connectionState: 'idle',
-          view: 'home',
-          lobbyCode: '',
-          statusMessage: error?.message || 'Could not create lobby.',
-        }));
-      });
-    };
-
-    tryCreate();
+    });
   };
 
   const joinLobby = () => {
@@ -566,97 +618,27 @@ export default function VsMode({ onBack }) {
       return;
     }
 
-    teardownNetwork(false);
-    const peer = new Peer(undefined, PEER_CONFIG);
-    peerRef.current = peer;
-
-    setState((previous) => ({
-      ...previous,
-      isHost: false,
-      connectionState: 'connecting',
-      statusMessage: 'Joining lobby...',
-      lobbyCode: code,
-      view: 'join',
-      opponentNickname: 'Host',
-    }));
-
-    peer.on('open', () => {
-      const connection = peer.connect(code, { reliable: true });
-      let timeout = window.setTimeout(() => {
-        try {
-          connection.close();
-        } catch {
-          // ignore
-        }
-        teardownNetwork(false);
-        setState((previous) => ({
-          ...previous,
-          connectionState: 'idle',
-          statusMessage: 'Could not find that lobby code.',
-          view: 'join',
-        }));
-      }, 7000);
-
-      connection.on('open', () => {
-        window.clearTimeout(timeout);
-        establishConnection(connection);
-        setState((previous) => ({
-          ...previous,
-          view: 'lobby',
-          connectionState: 'connected',
-          statusMessage: 'Connected.',
-        }));
-        sendMessage({
-          type: 'lobby:hello',
-          nickname: stateRef.current.nickname,
-        });
+    connectBackend(() => {
+      sendMessage('lobby:join', {
+        lobbyCode: code,
+        nickname: stateRef.current.nickname,
       });
 
-      connection.on('error', () => {
-        window.clearTimeout(timeout);
-      });
-
-      connection.on('close', () => {
-        window.clearTimeout(timeout);
-      });
-    });
-
-    peer.on('error', (error) => {
       setState((previous) => ({
         ...previous,
-        connectionState: 'idle',
-        statusMessage: error?.message || 'Could not join lobby.',
+        isHost: false,
+        connectionState: 'connecting',
+        statusMessage: 'Joining lobby...',
+        lobbyCode: code,
+        view: 'join',
+        opponentNickname: 'Host',
       }));
-    });
-  };
-
-  const startMatch = () => {
-    if (!state.isHost) return;
-    const rounds = Array.from({ length: state.settings.rounds }, (_, roundIndex) => initialRoundState(pickRandomTarget(), roundIndex, state.settings.randomizedPlayerCount));
-
-    setState((previous) => ({
-      ...previous,
-      view: 'game',
-      currentRoundIndex: 0,
-      roundStates: rounds,
-      finalOutcome: null,
-      rematch: initialRematchState(),
-      statusMessage: 'Match started.',
-    }));
-
-    sendMessage({
-      type: 'game:start',
-      settings: state.settings,
-      rounds: rounds.map((round) => ({
-        target: round.target,
-        initialGuesses: round.localGuesses,
-      })),
     });
   };
 
   const handlePlayAgain = () => {
     setState((previous) => {
-      const nextReady = !Boolean(previous.rematch?.localReady);
+      const nextReady = !previous.rematch?.localReady;
       const nextRematch = {
         ...(previous.rematch ?? initialRematchState()),
         localReady: nextReady,
@@ -664,9 +646,9 @@ export default function VsMode({ onBack }) {
       };
 
       window.setTimeout(() => {
-        sendMessage({
-          type: 'results:ready',
+        sendMessage('rematch:ready', {
           ready: nextReady,
+          lobbyCode: previous.lobbyCode,
         });
 
         if (previous.isHost && previous.view === 'results' && nextReady && nextRematch.opponentReady && !nextRematch.localLeft && !nextRematch.opponentLeft) {
@@ -726,15 +708,15 @@ export default function VsMode({ onBack }) {
       };
     });
 
-    sendMessage({
-      type: 'game:guess',
+    sendMessage('game:guess', {
+      lobbyCode: state.lobbyCode,
       roundIndex: state.currentRoundIndex,
       guessName: player.name,
     });
 
     if (activeTarget && player.name === activeTarget.name) {
-      sendMessage({
-        type: 'game:complete',
+      sendMessage('game:complete', {
+        lobbyCode: state.lobbyCode,
         roundIndex: state.currentRoundIndex,
         guessCount: nextGuesses.length,
         timeMs,
@@ -764,15 +746,15 @@ export default function VsMode({ onBack }) {
       };
     });
 
-    sendMessage({
-      type: 'game:surrender',
+    sendMessage('game:surrender', {
       roundIndex: state.currentRoundIndex,
+      lobbyCode: state.lobbyCode,
     });
   };
 
   const handleBackToMenu = () => {
     if (state.view === 'results') {
-      sendMessage({ type: 'results:left' });
+      teardownNetwork(true, 'results:left');
       setState((previous) => ({
         ...previous,
         view: 'home',
@@ -786,7 +768,7 @@ export default function VsMode({ onBack }) {
       return;
     }
 
-    teardownNetwork(true);
+    teardownNetwork(true, 'left:lobby');
     if (typeof onBack === 'function') onBack();
   };
 
@@ -831,7 +813,7 @@ export default function VsMode({ onBack }) {
       state={state}
       visibleStats={visibleStats}
       onBackToMenu={handleBackToMenu}
-      onNicknameChange={(event) => setState((previous) => ({ ...previous, nickname: event.target.value }))}
+      onNicknameChange={handleNicknameChange}
       onJoinCodeChange={(event) => setState((previous) => ({ ...previous, joinCode: event.target.value }))}
       onViewChange={(newView) => setState((previous) => ({ ...previous, view: newView, statusMessage: '' }))}
       onUpdateSettings={updateSettings}

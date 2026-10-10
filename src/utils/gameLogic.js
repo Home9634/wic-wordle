@@ -15,6 +15,8 @@ const getOrderedDailyPlayers = () => {
 
   dailyPlayerOrder.forEach((playerName) => {
     const normalizedName = playerName.trim().toLowerCase();
+    if (!normalizedName) return;
+
     const player = players.find((entry) => {
       if (!entry) return false;
       const name = entry.name || '';
@@ -26,6 +28,13 @@ const getOrderedDailyPlayers = () => {
     if (player && !seenPlayers.has(player.name)) {
       orderedPlayers.push(player);
       seenPlayers.add(player.name);
+    } else if (!player && !seenPlayers.has(normalizedName)) {
+      // Preserve fake or placeholder daily entries so the schedule length remains fixed.
+      orderedPlayers.push({
+        name: playerName,
+        aliases: [],
+      });
+      seenPlayers.add(normalizedName);
     }
   });
 
@@ -74,10 +83,41 @@ export const getRandomPlayer = () => {
   return players[Math.floor(Math.random() * players.length)];
 };
 
-export const getRandomPlayers = (count) => {
+export const getRandomPlayers = (count, exclude = []) => {
   if (count <= 0 || players.length === 0) return [];
-  const n = Math.min(count, players.length);
-  const shuffled = [...players].sort(() => Math.random() - 0.5);
+
+  const excludedNames = new Set();
+  const addExcluded = (value) => {
+    if (!value) return;
+    if (typeof value === 'string') {
+      excludedNames.add(value.trim().toLowerCase());
+      return;
+    }
+    if (typeof value === 'object' && value.name) {
+      excludedNames.add(value.name.trim().toLowerCase());
+    }
+  };
+
+  if (Array.isArray(exclude)) {
+    exclude.forEach(addExcluded);
+  } else {
+    addExcluded(exclude);
+  }
+
+  const available = players.filter((player) => {
+    const name = player?.name?.trim().toLowerCase();
+    return name && !excludedNames.has(name);
+  });
+
+  if (available.length === 0) return [];
+
+  const n = Math.min(count, available.length);
+  const shuffled = [...available];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
   return shuffled.slice(0, n);
 };
 
@@ -121,16 +161,17 @@ const areGamesInSameCategory = (guessGame, targetGame) => {
   return Boolean(guessType && targetType && guessType === targetType);
 };
 
-const compareBestGameStat = (guessGame, target) => {
+const compareBestGameStat = (guessGame, target, key) => {
   const guessBestGames = toGameList(guessGame);
-  const targetBestGames = getBestGameValues(target);
+  const targetField = key === 'bestGameRetired' ? 'bestGameRetired' : 'bestGame';
+  const targetBestGame = toGameList(target?.[targetField]);
 
-  if (guessBestGames.some((game) => targetBestGames.includes(game))) {
+  if (guessBestGames.some((game) => targetBestGame.includes(game))) {
     return 'correct';
   }
 
   if (guessBestGames.some((guessBestGame) =>
-    targetBestGames.some((targetGame) => areGamesInSameCategory(guessBestGame, targetGame))
+    targetBestGame.some((targetGame) => areGamesInSameCategory(guessBestGame, targetGame))
   )) {
     return 'close';
   }
@@ -156,7 +197,7 @@ export const compareStats = (guess, target) => {
         feedback[key] = 'wrong';
       }
     } else if (bestGameKeys.includes(key)) {
-      feedback[key] = compareBestGameStat(guess[key], target);
+      feedback[key] = compareBestGameStat(guess[key], target, key);
     } else if (gameStatKeys.includes(key)) {
       feedback[key] = areGamesInSameCategory(guess[key], target[key]) ? 'close' : 'wrong';
     } else if (key === 'debut') {

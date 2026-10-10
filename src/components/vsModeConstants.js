@@ -1,8 +1,4 @@
-export const PEER_CONFIG = {
-  config: {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-  },
-};
+export const WS_BACKEND_URL = import.meta.env.VITE_WS_BACKEND_URL || 'wss://wicwordle.homespi.org';
 
 export const DEFAULT_VISIBLE_STATS = [
   'name',

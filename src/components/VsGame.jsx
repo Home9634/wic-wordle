@@ -4,7 +4,10 @@ import VsRoundSummary from './VsRoundSummary';
 import VsRoundDetailsBar, { VsOpponentMiniBoard } from './VsRoundDetailsBar';
 import { getMatchWinner } from '../utils/vsGameHelpers';
 import { findPlayerByNameOrAlias } from '../utils/gameLogic';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import GameInfo from './GameInfo';
+import { eventOrder } from '../data/events';
+import { gameTypeByName } from '../data/gameCategories';
 
 export default function VsGame({
   state,
@@ -55,6 +58,14 @@ export default function VsGame({
     .map((name) => findPlayerByNameOrAlias(name))
     .filter(Boolean)
     .reverse();
+
+  const gameCategoryRows = useMemo(() => {
+    return Object.entries(gameTypeByName).sort(([gameA, categoryA], [gameB, categoryB]) => {
+      const byCategory = categoryA.localeCompare(categoryB);
+      if (byCategory !== 0) return byCategory;
+      return gameA.localeCompare(gameB);
+    });
+  }, []);
 
   const matchSummary = getMatchWinner(state.roundStates, state.settings.scoreMode);
   const localRoundsWon = Number.isFinite(matchSummary.localScore) ? matchSummary.localScore : 0;
@@ -109,8 +120,8 @@ export default function VsGame({
         <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
           <div className="min-w-0 space-y-3 justify-center">
             <div className="flex justify-center items-center gap-3">
-              <SearchBar 
-                onGuess={onGuess} 
+              <SearchBar
+                onGuess={onGuess}
                 disabledPlayers={localGuesses}
                 cooldownRemaining={cooldownRemaining}
                 cooldownSeconds={state.settings.scoreMode === 'time' ? state.settings.cooldownSeconds : 0}
@@ -134,6 +145,9 @@ export default function VsGame({
               cooldownSeconds={state.settings.scoreMode === 'time' ? state.settings.cooldownSeconds : 0}
             />
           </div>
+        </div>
+        <div class="m-auto">
+          <GameInfo gameCategoryRows={gameCategoryRows} eventOrder={eventOrder} />
         </div>
       </div>
     </div>
